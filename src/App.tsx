@@ -9,6 +9,9 @@ import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Patients from "./pages/Patients";
+import Awareness from "./pages/Awareness";
+import Games from "./pages/Games";
+import LabAnalysis from "./pages/LabAnalysis";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -122,12 +125,7 @@ const App = () => {
                 path="/awareness" 
                 element={
                   user ? (
-                    <div className="min-h-screen bg-gradient-dashboard flex items-center justify-center">
-                      <div className="text-center">
-                        <h1 className="text-3xl font-bold mb-4">Did You Know? - Coming Soon</h1>
-                        <p className="text-muted-foreground">CKD insights and educational content</p>
-                      </div>
-                    </div>
+                    <Awareness />
                   ) : (
                     <Navigate to="/login" replace />
                   )
@@ -137,12 +135,7 @@ const App = () => {
                 path="/games" 
                 element={
                   user ? (
-                    <div className="min-h-screen bg-gradient-dashboard flex items-center justify-center">
-                      <div className="text-center">
-                        <h1 className="text-3xl font-bold mb-4">Play & Learn - Coming Soon</h1>
-                        <p className="text-muted-foreground">Interactive games for kidney health education</p>
-                      </div>
-                    </div>
+                    <Games />
                   ) : (
                     <Navigate to="/login" replace />
                   )
@@ -152,12 +145,7 @@ const App = () => {
                 path="/analysis" 
                 element={
                   user ? (
-                    <div className="min-h-screen bg-gradient-dashboard flex items-center justify-center">
-                      <div className="text-center">
-                        <h1 className="text-3xl font-bold mb-4">Lab Analysis - Coming Soon</h1>
-                        <p className="text-muted-foreground">Upload and analyze your lab results</p>
-                      </div>
-                    </div>
+                    <LabAnalysis />
                   ) : (
                     <Navigate to="/login" replace />
                   )

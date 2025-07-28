@@ -1,27 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gamepad2, Trophy, Heart, Apple, Zap, Target, Clock, Star } from "lucide-react";
+import { Gamepad2, Trophy, Heart, Apple, Zap, Target, Clock, Star, Play, Pause } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 
-// Food items for the plate game
+// Food items for the plate game with emojis
 const foodItems = [
-  { id: 'salmon', name: 'Salmon', type: 'good', points: 10, category: 'protein' },
-  { id: 'broccoli', name: 'Broccoli', type: 'good', points: 8, category: 'vegetable' },
-  { id: 'rice', name: 'Brown Rice', type: 'good', points: 6, category: 'grain' },
-  { id: 'apple', name: 'Apple', type: 'good', points: 7, category: 'fruit' },
-  { id: 'water', name: 'Water', type: 'good', points: 10, category: 'drink' },
-  { id: 'nuts', name: 'Almonds', type: 'good', points: 8, category: 'snack' },
-  { id: 'chips', name: 'Potato Chips', type: 'bad', points: -5, category: 'snack' },
-  { id: 'soda', name: 'Soda', type: 'bad', points: -8, category: 'drink' },
-  { id: 'bacon', name: 'Bacon', type: 'bad', points: -7, category: 'protein' },
-  { id: 'candy', name: 'Candy', type: 'bad', points: -6, category: 'snack' },
-  { id: 'fastfood', name: 'Fast Food Burger', type: 'bad', points: -10, category: 'meal' },
-  { id: 'fries', name: 'French Fries', type: 'bad', points: -8, category: 'side' },
+  { id: 'salmon', name: 'Salmon', emoji: '🐟', type: 'good', points: 10, category: 'protein' },
+  { id: 'broccoli', name: 'Broccoli', emoji: '🥦', type: 'good', points: 8, category: 'vegetable' },
+  { id: 'rice', name: 'Brown Rice', emoji: '🍚', type: 'good', points: 6, category: 'grain' },
+  { id: 'apple', name: 'Apple', emoji: '🍎', type: 'good', points: 7, category: 'fruit' },
+  { id: 'water', name: 'Water', emoji: '💧', type: 'good', points: 10, category: 'drink' },
+  { id: 'nuts', name: 'Almonds', emoji: '🥜', type: 'good', points: 8, category: 'snack' },
+  { id: 'spinach', name: 'Spinach', emoji: '🥬', type: 'good', points: 9, category: 'vegetable' },
+  { id: 'berries', name: 'Berries', emoji: '🫐', type: 'good', points: 8, category: 'fruit' },
+  { id: 'chips', name: 'Potato Chips', emoji: '🍟', type: 'bad', points: -5, category: 'snack' },
+  { id: 'soda', name: 'Soda', emoji: '🥤', type: 'bad', points: -8, category: 'drink' },
+  { id: 'bacon', name: 'Bacon', emoji: '🥓', type: 'bad', points: -7, category: 'protein' },
+  { id: 'candy', name: 'Candy', emoji: '🍭', type: 'bad', points: -6, category: 'snack' },
+  { id: 'fastfood', name: 'Fast Food Burger', emoji: '🍔', type: 'bad', points: -10, category: 'meal' },
+  { id: 'pizza', name: 'Pizza', emoji: '🍕', type: 'bad', points: -8, category: 'meal' },
 ];
 
 // Patient cases for doctor simulator
@@ -55,17 +57,32 @@ const patientCases = [
   }
 ];
 
-// Runner game items
+// Runner game items with emojis and positions
 const runnerItems = [
-  { id: 'water-bottle', name: 'Water Bottle', type: 'good', points: 10 },
-  { id: 'apple-fruit', name: 'Apple', type: 'good', points: 8 },
-  { id: 'exercise', name: 'Exercise Equipment', type: 'good', points: 12 },
-  { id: 'vegetables', name: 'Fresh Vegetables', type: 'good', points: 9 },
-  { id: 'cigarette', name: 'Cigarette', type: 'bad', points: -15 },
-  { id: 'junk-food', name: 'Junk Food', type: 'bad', points: -10 },
-  { id: 'alcohol', name: 'Alcohol', type: 'bad', points: -12 },
-  { id: 'salt', name: 'Excess Salt', type: 'bad', points: -8 },
+  { id: 'water-bottle', name: 'Water', emoji: '💧', type: 'good', points: 10 },
+  { id: 'apple-fruit', name: 'Apple', emoji: '🍎', type: 'good', points: 8 },
+  { id: 'exercise', name: 'Exercise', emoji: '🏃‍♂️', type: 'good', points: 12 },
+  { id: 'vegetables', name: 'Vegetables', emoji: '🥬', type: 'good', points: 9 },
+  { id: 'meditation', name: 'Meditation', emoji: '🧘‍♂️', type: 'good', points: 8 },
+  { id: 'sleep', name: 'Good Sleep', emoji: '😴', type: 'good', points: 10 },
+  { id: 'cigarette', name: 'Cigarette', emoji: '🚬', type: 'bad', points: -15 },
+  { id: 'junk-food', name: 'Junk Food', emoji: '🍔', type: 'bad', points: -10 },
+  { id: 'alcohol', name: 'Alcohol', emoji: '🍺', type: 'bad', points: -12 },
+  { id: 'salt', name: 'Excess Salt', emoji: '🧂', type: 'bad', points: -8 },
+  { id: 'stress', name: 'Stress', emoji: '😫', type: 'bad', points: -10 },
+  { id: 'soda', name: 'Soda', emoji: '🥤', type: 'bad', points: -9 },
 ];
+
+// Game item positions for runner game
+const generateRandomItem = () => {
+  const item = runnerItems[Math.floor(Math.random() * runnerItems.length)];
+  return {
+    ...item,
+    x: Math.random() * 90 + 5, // 5% to 95% width
+    y: -50, // Start above screen
+    id: Math.random().toString(36),
+  };
+};
 
 export default function Games() {
   const [activeGame, setActiveGame] = useState<string | null>(null);
@@ -89,6 +106,11 @@ export default function Games() {
   const [runnerLife, setRunnerLife] = useState(100);
   const [collectedItems, setCollectedItems] = useState<string[]>([]);
   const [runnerGameActive, setRunnerGameActive] = useState(false);
+  const [runnerPosition, setRunnerPosition] = useState(50); // 0-100 (left to right percentage)
+  const [fallingItems, setFallingItems] = useState<any[]>([]);
+  const [gameSpeed, setGameSpeed] = useState(2);
+  const runnerRef = useRef<HTMLDivElement>(null);
+  const gameAreaRef = useRef<HTMLDivElement>(null);
 
   // Plate Game Functions
   const onDragEnd = (result: DropResult) => {
@@ -162,12 +184,12 @@ export default function Games() {
   // Runner Game Functions
   const collectItem = (item: any) => {
     setCollectedItems([...collectedItems, item.id]);
-    setRunnerScore(runnerScore + Math.abs(item.points));
-    
-    if (item.type === 'bad') {
-      setRunnerLife(Math.max(0, runnerLife - Math.abs(item.points)));
-    } else {
+    if (item.type === 'good') {
+      setRunnerScore(runnerScore + item.points);
       setRunnerLife(Math.min(100, runnerLife + 5));
+    } else {
+      setRunnerScore(Math.max(0, runnerScore + item.points));
+      setRunnerLife(Math.max(0, runnerLife - Math.abs(item.points)));
     }
   };
 
@@ -176,6 +198,9 @@ export default function Games() {
     setRunnerScore(0);
     setRunnerLife(100);
     setCollectedItems([]);
+    setFallingItems([]);
+    setRunnerPosition(50);
+    setGameSpeed(2);
   };
 
   const resetRunnerGame = () => {
@@ -183,7 +208,77 @@ export default function Games() {
     setRunnerScore(0);
     setRunnerLife(100);
     setCollectedItems([]);
+    setFallingItems([]);
+    setRunnerPosition(50);
   };
+
+  // Runner game animation loop
+  useEffect(() => {
+    if (!runnerGameActive) return;
+
+    const gameLoop = setInterval(() => {
+      setFallingItems(prev => {
+        const updated = prev.map(item => ({
+          ...item,
+          y: item.y + gameSpeed
+        })).filter(item => item.y < 400); // Remove items that fell off screen
+
+        // Add new items randomly
+        if (Math.random() < 0.02) {
+          updated.push(generateRandomItem());
+        }
+
+        // Check for collisions
+        const gameArea = gameAreaRef.current;
+        if (gameArea) {
+          const runnerRect = {
+            x: runnerPosition,
+            y: 80, // Runner is at 80% down the screen
+            width: 8,
+            height: 8
+          };
+
+          updated.forEach(item => {
+            if (item.y > 70 && item.y < 90 && 
+                Math.abs(item.x - runnerPosition) < 6 && 
+                !collectedItems.includes(item.id)) {
+              collectItem(item);
+            }
+          });
+        }
+
+        return updated;
+      });
+
+      // Increase speed over time
+      setGameSpeed(prev => Math.min(5, prev + 0.005));
+    }, 50);
+
+    return () => clearInterval(gameLoop);
+  }, [runnerGameActive, runnerPosition, collectedItems, runnerScore, runnerLife, gameSpeed]);
+
+  // Handle keyboard controls
+  useEffect(() => {
+    if (!runnerGameActive) return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a') {
+        setRunnerPosition(prev => Math.max(5, prev - 5));
+      } else if (e.key === 'ArrowRight' || e.key === 'd') {
+        setRunnerPosition(prev => Math.min(95, prev + 5));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [runnerGameActive]);
+
+  // Check for game over
+  useEffect(() => {
+    if (runnerLife <= 0 && runnerGameActive) {
+      setRunnerGameActive(false);
+    }
+  }, [runnerLife, runnerGameActive]);
 
   return (
     <div className="min-h-screen bg-gradient-dashboard">
@@ -307,16 +402,17 @@ export default function Games() {
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
                                     {...provided.dragHandleProps}
-                                    className={`p-3 rounded-lg border-2 text-center cursor-grab transition-colors ${
-                                      item.type === 'good' 
-                                        ? 'border-secondary bg-secondary/10 hover:bg-secondary/20' 
-                                        : 'border-destructive bg-destructive/10 hover:bg-destructive/20'
-                                    }`}
-                                  >
-                                    <div className="text-sm font-medium">{item.name}</div>
-                                    <div className={`text-xs ${item.type === 'good' ? 'text-secondary' : 'text-destructive'}`}>
-                                      {item.points > 0 ? '+' : ''}{item.points} pts
-                                    </div>
+                                     className={`p-3 rounded-lg border-2 text-center cursor-grab transition-all duration-200 hover:scale-105 ${
+                                       item.type === 'good' 
+                                         ? 'border-secondary bg-secondary/10 hover:bg-secondary/20' 
+                                         : 'border-destructive bg-destructive/10 hover:bg-destructive/20'
+                                     }`}
+                                   >
+                                     <div className="text-2xl mb-1">{item.emoji}</div>
+                                     <div className="text-sm font-medium">{item.name}</div>
+                                     <div className={`text-xs ${item.type === 'good' ? 'text-secondary' : 'text-destructive'}`}>
+                                       {item.points > 0 ? '+' : ''}{item.points} pts
+                                     </div>
                                   </div>
                                 )}
                               </Draggable>
@@ -365,11 +461,14 @@ export default function Games() {
                                       className={`p-2 rounded border ${
                                         item.type === 'good' ? 'border-secondary bg-secondary/10' : 'border-destructive bg-destructive/10'
                                       }`}
-                                    >
-                                      <div className="flex justify-between items-center">
-                                        <span className="text-sm">{item.name}</span>
-                                        <span className="text-xs font-medium">{item.points > 0 ? '+' : ''}{item.points}</span>
-                                      </div>
+                                     >
+                                       <div className="flex justify-between items-center">
+                                         <div className="flex items-center space-x-2">
+                                           <span className="text-lg">{item.emoji}</span>
+                                           <span className="text-sm">{item.name}</span>
+                                         </div>
+                                         <span className="text-xs font-medium">{item.points > 0 ? '+' : ''}{item.points}</span>
+                                       </div>
                                     </div>
                                   )}
                                 </Draggable>
@@ -568,7 +667,7 @@ export default function Games() {
 
             {/* Runner Game */}
             {activeGame === 'runner' && (
-              <Card className="shadow-card border-0 max-w-4xl mx-auto">
+              <Card className="shadow-card border-0">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -577,94 +676,127 @@ export default function Games() {
                     </div>
                     <div className="flex items-center space-x-4">
                       <Badge variant="default">Score: {runnerScore}</Badge>
-                      <div className="flex items-center space-x-2">
-                        <Heart className="h-4 w-4 text-red-500" />
-                        <Progress value={runnerLife} className="w-20 h-2" />
-                      </div>
+                      <Badge variant={runnerLife > 50 ? "secondary" : "destructive"}>
+                        Health: {runnerLife}%
+                      </Badge>
                     </div>
                   </CardTitle>
-                  <CardDescription>
-                    Collect healthy items (green) and avoid harmful ones (red) to protect your kidneys!
-                  </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   {!runnerGameActive ? (
-                    <div className="text-center space-y-6">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                        <div className="text-center">
-                          <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center mx-auto mb-2">
-                            <Apple className="h-6 w-6 text-white" />
+                    <div className="text-center py-8">
+                      <div className="mb-4">
+                        <Zap className="h-16 w-16 mx-auto text-warning mb-4" />
+                        <h3 className="text-xl font-bold mb-2">Kidney Shield Runner</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Move left/right with arrow keys or A/D. Collect healthy items (💧🍎🥬) and avoid harmful ones (🚬🍔🍺)!
+                        </p>
+                        <div className="grid grid-cols-2 gap-4 max-w-md mx-auto mb-6">
+                          <div className="p-3 rounded-lg bg-secondary/10 border border-secondary">
+                            <h4 className="font-medium text-secondary mb-2">Collect These:</h4>
+                            <div className="text-2xl space-x-1">💧🍎🥬🏃‍♂️🧘‍♂️😴</div>
                           </div>
-                          <p className="text-xs">Healthy Foods<br/>+Points +Health</p>
-                        </div>
-                        <div className="text-center">
-                          <div className="w-12 h-12 bg-destructive rounded-full flex items-center justify-center mx-auto mb-2">
-                            <Zap className="h-6 w-6 text-white" />
+                          <div className="p-3 rounded-lg bg-destructive/10 border border-destructive">
+                            <h4 className="font-medium text-destructive mb-2">Avoid These:</h4>
+                            <div className="text-2xl space-x-1">🚬🍔🍺🧂😫🥤</div>
                           </div>
-                          <p className="text-xs">Harmful Items<br/>-Health</p>
-                        </div>
-                        <div className="text-center">
-                          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto mb-2">
-                            <Target className="h-6 w-6 text-white" />
-                          </div>
-                          <p className="text-xs">Collect Items<br/>Click to Grab</p>
-                        </div>
-                        <div className="text-center">
-                          <div className="w-12 h-12 bg-warning rounded-full flex items-center justify-center mx-auto mb-2">
-                            <Star className="h-6 w-6 text-white" />
-                          </div>
-                          <p className="text-xs">High Score<br/>Stay Healthy!</p>
                         </div>
                       </div>
-                      <Button onClick={startRunnerGame} size="lg" className="w-full">
+                      <Button onClick={startRunnerGame} size="lg" className="bg-gradient-primary hover:scale-105 transition-all">
+                        <Play className="h-5 w-5 mr-2" />
                         Start Game
                       </Button>
                     </div>
                   ) : (
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {runnerItems.map((item, index) => (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1 mr-4">
+                          <div className="flex justify-between text-sm mb-1">
+                            <span>Health</span>
+                            <span>{runnerLife}%</span>
+                          </div>
+                          <Progress value={runnerLife} className="h-3" />
+                        </div>
+                        <Button variant="outline" onClick={resetRunnerGame}>
+                          <Pause className="h-4 w-4 mr-2" />
+                          Stop
+                        </Button>
+                      </div>
+                      
+                      {/* Game Area */}
+                      <div 
+                        ref={gameAreaRef}
+                        className="relative bg-gradient-to-b from-sky-100 to-green-100 dark:from-sky-900/20 dark:to-green-900/20 rounded-lg overflow-hidden"
+                        style={{ height: '400px' }}
+                      >
+                        {/* Background elements */}
+                        <div className="absolute inset-0">
+                          <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-green-200 to-transparent dark:from-green-800/30"></div>
+                          <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-sky-200 to-transparent dark:from-sky-800/30"></div>
+                        </div>
+
+                        {/* Falling Items */}
+                        {fallingItems.map((item) => (
                           <div
-                            key={`${item.id}-${index}`}
-                            onClick={() => collectItem(item)}
-                            className={`p-4 rounded-lg border-2 cursor-pointer text-center transition-transform hover:scale-105 ${
-                              item.type === 'good'
-                                ? 'border-secondary bg-secondary/10 hover:bg-secondary/20'
-                                : 'border-destructive bg-destructive/10 hover:bg-destructive/20'
-                            } ${collectedItems.includes(item.id) ? 'opacity-50' : ''}`}
+                            key={item.id}
+                            className="absolute transition-all duration-100 hover:scale-110"
                             style={{
-                              animationDelay: `${index * 200}ms`,
-                              animation: collectedItems.includes(item.id) ? 'none' : 'pulse-gentle 2s infinite'
+                              left: `${item.x}%`,
+                              top: `${item.y}%`,
+                              transform: 'translate(-50%, -50%)',
                             }}
                           >
-                            <div className="text-sm font-medium mb-1">{item.name}</div>
-                            <div className={`text-xs ${item.type === 'good' ? 'text-secondary' : 'text-destructive'}`}>
-                              {item.points > 0 ? '+' : ''}{Math.abs(item.points)} pts
+                            <div className={`text-3xl drop-shadow-lg ${item.type === 'good' ? 'animate-pulse' : ''}`}>
+                              {item.emoji}
                             </div>
                           </div>
                         ))}
-                      </div>
-                      
-                      {runnerLife <= 0 && (
-                        <div className="text-center space-y-4 p-6 bg-destructive/10 rounded-lg border border-destructive/20">
-                          <h3 className="text-xl font-bold text-destructive">Game Over!</h3>
-                          <p>Your kidney health reached critical levels. Final Score: {runnerScore}</p>
-                          <Button onClick={resetRunnerGame} variant="outline">
-                            Play Again
-                          </Button>
-                        </div>
-                      )}
 
-                      {runnerLife > 0 && (
-                        <div className="flex justify-center space-x-4">
-                          <Button onClick={resetRunnerGame} variant="outline">
-                            Reset Game
-                          </Button>
-                          <Button onClick={() => setActiveGame(null)}>
-                            Finish Game
-                          </Button>
+                        {/* Runner Character */}
+                        <div
+                          ref={runnerRef}
+                          className="absolute bottom-16 transition-all duration-150"
+                          style={{
+                            left: `${runnerPosition}%`,
+                            transform: 'translateX(-50%)',
+                          }}
+                        >
+                          <div className="text-4xl animate-bounce">🏃‍♂️</div>
                         </div>
-                      )}
+
+                        {/* Instructions */}
+                        <div className="absolute top-4 left-4 text-sm text-muted-foreground bg-background/80 rounded-lg p-2">
+                          <div>Use ← → or A/D to move</div>
+                          <div>Speed: {gameSpeed.toFixed(1)}x</div>
+                        </div>
+
+                        {/* Game Over */}
+                        {runnerLife <= 0 && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <div className="bg-background rounded-lg p-6 text-center">
+                              <h3 className="text-xl font-bold mb-2">Game Over!</h3>
+                              <p className="text-muted-foreground mb-4">Final Score: {runnerScore}</p>
+                              <Button onClick={startRunnerGame}>Play Again</Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Score and Stats */}
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div className="p-3 rounded-lg bg-muted/20">
+                          <div className="text-2xl font-bold text-primary">{runnerScore}</div>
+                          <div className="text-sm text-muted-foreground">Score</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-muted/20">
+                          <div className="text-2xl font-bold text-secondary">{collectedItems.length}</div>
+                          <div className="text-sm text-muted-foreground">Items</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-muted/20">
+                          <div className="text-2xl font-bold text-warning">{gameSpeed.toFixed(1)}x</div>
+                          <div className="text-sm text-muted-foreground">Speed</div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </CardContent>

@@ -18,7 +18,7 @@ interface DashboardProps {
 const mockPatients = [
   {
     id: 1,
-    name: "Sarah M.",
+    name: "Sarah M",
     age: 45,
     stage: "Stage 2",
     story: "Managed to improve her kidney function through lifestyle changes.",

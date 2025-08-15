@@ -100,7 +100,7 @@ export default function Awareness() {
           <div className="flex justify-center mb-4">
             <Brain className="h-12 w-12 text-primary" />
           </div>
-          <h1 className="text-4xl font-bold mb-4">Did You Know123?</h1>
+          <h1 className="text-4xl font-bold mb-4">Did You Know123456?</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Discover eye-opening insights about chronic kidney disease from real patient data and medical research.
           </p>

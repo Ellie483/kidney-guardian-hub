@@ -23,7 +23,7 @@ const mockPatients = [
   },
   {
     id: 2,
-    name: "James Rodriguez",
+    name: "James",
     age: 52,
     gender: "Male",
     stage: "Stage 3",

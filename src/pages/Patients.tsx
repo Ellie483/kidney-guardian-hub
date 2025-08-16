@@ -36,7 +36,7 @@ const mockPatients = [
   },
   {
     id: 3,
-    name: "Maria Lopez",
+    name: "Maria Barina",
     age: 38,
     gender: "Female",
     stage: "Stage 1",

@@ -10,7 +10,7 @@ import { useState } from "react";
 const mockPatients = [
   {
     id: 1,
-    name: "Sarah Martinez",
+    name: "Sarah ",
     age: 45,
     gender: "Female",
     stage: "Stage 2",

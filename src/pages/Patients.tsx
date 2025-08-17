@@ -1,126 +1,118 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Card, CardContent, CardDescription, CardHeader, CardTitle
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Heart, Search, Filter, Users, Activity, Cigarette, Utensils } from "lucide-react";
-import { useState } from "react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Heart, Search, Filter, Users } from "lucide-react";
 
-// Mock patient data
-const mockPatients = [
-  {
-    id: 1,
-    name: "Sarah ",
-    age: 45,
-    gender: "Female",
-    stage: "Stage 2",
-    diagnosis: "Chronic Kidney Disease",
-    story: "Diagnosed with CKD after routine blood work. Through dietary changes and regular exercise, she's maintaining stable kidney function.",
-    lifestyle: { diabetic: true, exercise: true, smokes: false, highBP: false },
-    riskFactors: ["Diabetes", "Family History"],
-    improvements: ["Lost 25 lbs", "Better blood sugar control", "Regular exercise routine"],
-    matchScore: 85
-  },
-  {
-    id: 2,
-    name: "James",
-    age: 52,
-    gender: "Male",
-    stage: "Stage 3",
-    diagnosis: "Diabetic Nephropathy",
-    story: "Long-time diabetic who developed kidney complications. Successfully quit smoking and now focuses on blood pressure management.",
-    lifestyle: { smokes: false, highBP: true, diabetic: true, exercise: false },
-    riskFactors: ["Diabetes", "Former Smoker", "High Blood Pressure"],
-    improvements: ["Quit smoking", "Blood pressure under control", "Regular doctor visits"],
-    matchScore: 78
-  },
-  {
-    id: 3,
-    name: "Maria Barina",
-    age: 38,
-    gender: "Female",
-    stage: "Stage 1",
-    diagnosis: "Early CKD Detection",
-    story: "Caught kidney disease early due to family history. Proactive lifestyle changes have kept her kidneys healthy.",
-    lifestyle: { familyHistory: true, exercise: true, diabetic: false, smokes: false },
-    riskFactors: ["Family History"],
-    improvements: ["Preventive care", "Healthy diet", "Regular monitoring"],
-    matchScore: 92
-  },
-  {
-    id: 4,
-    name: "Robert Chen",
-    age: 59,
-    gender: "Male",
-    stage: "Stage 4",
-    diagnosis: "Advanced CKD",
-    story: "Advanced kidney disease but maintaining quality of life through careful management and family support.",
-    lifestyle: { smokes: false, highBP: true, diabetic: true, heartDisease: true },
-    riskFactors: ["Diabetes", "High Blood Pressure", "Heart Disease"],
-    improvements: ["Stable progression", "Active lifestyle", "Strong support system"],
-    matchScore: 65
-  },
-  {
-    id: 5,
-    name: "Linda Thompson",
-    age: 41,
-    gender: "Female",
-    stage: "Stage 2",
-    diagnosis: "Hypertensive Nephropathy",
-    story: "High blood pressure led to kidney damage. Now successfully managing both conditions with medication and lifestyle changes.",
-    lifestyle: { smokes: false, highBP: true, exercise: true, diabetic: false },
-    riskFactors: ["High Blood Pressure"],
-    improvements: ["Blood pressure controlled", "Regular exercise", "Medication compliance"],
-    matchScore: 73
-  },
-  {
-    id: 6,
-    name: "David Kim",
-    age: 34,
-    gender: "Male",
-    stage: "Stage 1",
-    diagnosis: "Genetic Risk",
-    story: "Genetic predisposition to kidney disease. Taking preventive measures to maintain healthy kidneys for life.",
-    lifestyle: { familyHistory: true, exercise: true, smokes: false, diabetic: false },
-    riskFactors: ["Genetic Predisposition"],
-    improvements: ["Preventive lifestyle", "Regular screening", "Health awareness"],
-    matchScore: 88
-  }
-];
+type PatientCard = {
+  id: number;
+  name?: string;
+  age?: number | null;
+  gender?: string;
+  stage?: string;
+  diagnosis?: string;
+  story?: string;
+  lifestyle?: {
+    diabetic?: boolean; exercise?: boolean; smokes?: boolean; highBP?: boolean;
+  };
+  riskFactors?: string[];
+  improvements?: string[];
+  vitals?: { bmi?: number | null; egfr?: number | null; hemoglobin?: number | null };
+  labFlags?: string[];
+  matchScore?: number;
+};
 
 export default function Patients() {
+  const [patients, setPatients] = useState<PatientCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [genderFilter, setGenderFilter] = useState("all");
 
-  const filteredPatients = mockPatients.filter(patient => {
-    const matchesSearch = patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         patient.story.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStage = stageFilter === "all" || patient.stage.includes(stageFilter);
-    const matchesGender = genderFilter === "all" || patient.gender.toLowerCase() === genderFilter;
-    
-    return matchesSearch && matchesStage && matchesGender;
-  });
+  // modal state
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<PatientCard | null>(null);
 
-  const getLifestyleIcon = (key: string) => {
-    switch (key) {
-      case 'exercise': return <Activity className="h-4 w-4" />;
-      case 'smokes': return <Cigarette className="h-4 w-4" />;
-      case 'diabetic': return <Heart className="h-4 w-4" />;
-      default: return <Utensils className="h-4 w-4" />;
-    }
-  };
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetch("/api/patients?limit=9");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: PatientCard[] = await res.json();
+        setPatients(data);
+      } catch (e: any) {
+        setError(e?.message || "Failed to load patients");
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const filteredPatients = useMemo(() => {
+    return patients.filter((p) => {
+      const name = p.name ?? "";
+      const story = p.story ?? "";
+      const stage = p.stage ?? "";
+      const gender = p.gender ?? "";
+      const matchesSearch =
+        name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        story.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStage =
+        stageFilter === "all" || stage.toLowerCase().includes(stageFilter.toLowerCase());
+      const matchesGender =
+        genderFilter === "all" || gender.toLowerCase() === genderFilter.toLowerCase();
+      return matchesSearch && matchesStage && matchesGender;
+    });
+  }, [patients, searchTerm, stageFilter, genderFilter]);
 
   const getStageColor = (stage: string) => {
     switch (stage) {
-      case 'Stage 1': return 'bg-secondary text-secondary-foreground';
-      case 'Stage 2': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-      case 'Stage 3': return 'bg-warning/10 text-warning-foreground';
-      case 'Stage 4': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300';
-      case 'Stage 5': return 'bg-destructive/10 text-destructive-foreground';
-      default: return 'bg-muted text-muted-foreground';
+      case "Stage 1": return "bg-secondary text-secondary-foreground";
+      case "Stage 2": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
+      case "Stage 3": return "bg-warning/10 text-warning-foreground";
+      case "Stage 4": return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
+      case "Stage 5": return "bg-destructive/10 text-destructive-foreground";
+      default: return "bg-muted text-muted-foreground";
     }
   };
+
+  const topN = (arr: string[] | undefined, n: number) =>
+    Array.isArray(arr) ? arr.slice(0, n) : [];
+
+  const openModal = (p: PatientCard) => {
+    setSelected(p);
+    setOpen(true);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen grid place-items-center">
+        <p className="text-muted-foreground">Loading patients…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen grid place-items-center">
+        <p className="text-destructive">Error: {error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-dashboard">
@@ -183,74 +175,84 @@ export default function Patients() {
           </CardContent>
         </Card>
 
-        {/* Patient Cards */}
+        {/* Patient Cards (compact preview) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredPatients.map((patient, index) => (
-            <Card key={patient.id} className="shadow-card border-0 hover:shadow-hover transition-all duration-300 animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{patient.name}</CardTitle>
-                    <CardDescription>{patient.age} years old • {patient.gender}</CardDescription>
-                  </div>
-                  <Badge className={getStageColor(patient.stage)}>
-                    {patient.stage}
-                  </Badge>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Heart className="h-4 w-4 text-red-500" />
-                  <span className="text-sm font-medium">{patient.diagnosis}</span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {patient.story}
-                </p>
-
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Risk Factors:</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {patient.riskFactors.map((factor, idx) => (
-                      <Badge key={idx} variant="outline" className="text-xs">
-                        {factor}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Key Improvements:</h4>
-                  <ul className="text-xs text-muted-foreground space-y-1">
-                    {patient.improvements.slice(0, 2).map((improvement, idx) => (
-                      <li key={idx} className="flex items-center space-x-2">
-                        <div className="w-1 h-1 bg-secondary rounded-full" />
-                        <span>{improvement}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="pt-2 border-t border-border">
+          {filteredPatients.map((p, index) => {
+            const stage = p.stage || "Unknown";
+            const vitals = p.vitals || {};
+            const previewRisks = topN(p.riskFactors, 2);
+            const previewFlags = topN(p.labFlags, 1);
+            return (
+              <Card
+                key={p.id ?? index}
+                className="shadow-card border-0 hover:shadow-hover transition-all duration-300 animate-fade-in"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <CardHeader>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Similarity Match</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-primary rounded-full transition-all duration-500"
-                          style={{ width: `${patient.matchScore}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-medium">{patient.matchScore}%</span>
+                    <div>
+                      <CardTitle className="text-lg">{p.name || `Patient ${index + 1}`}</CardTitle>
+                      <CardDescription>
+                        {p.age ? `${p.age} years old • ${p.gender ?? "—"}` : p.gender ?? "—"}
+                      </CardDescription>
                     </div>
+                    <Badge className={getStageColor(stage)}>{stage}</Badge>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  {p.diagnosis && (
+                    <div className="flex items-center space-x-2 mt-1">
+                      <Heart className="h-4 w-4 text-red-500" />
+                      <span className="text-sm font-medium">{p.diagnosis}</span>
+                    </div>
+                  )}
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  {/* minimal preview */}
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>BMI: <span className="font-medium">{vitals.bmi ?? "—"}</span></div>
+                    <div>eGFR: <span className="font-medium">{vitals.egfr ?? "—"}</span></div>
+                    <div>Hgb: <span className="font-medium">{vitals.hemoglobin ?? "—"}</span></div>
+                  </div>
+
+                  {previewRisks.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Risk Factors:</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {previewRisks.map((rf, i) => (
+                          <Badge key={i} variant="outline" className="text-xs">{rf}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {previewFlags.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Lab Flag:</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {previewFlags.map((f, i) => (
+                          <Badge key={i} variant="outline" className="text-xs">{f}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => openModal(p)}
+                      className="w-full"
+                    >
+                      View details
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {filteredPatients.length === 0 && (
-          <Card className="text-center py-12 shadow-card border-0">
+          <Card className="text-center py-12 shadow-card border-0 mt-6">
             <CardContent>
               <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">No patients found</h3>
@@ -260,20 +262,131 @@ export default function Patients() {
             </CardContent>
           </Card>
         )}
-
-        {/* Call to Action */}
-        <Card className="mt-8 bg-gradient-primary text-primary-foreground shadow-card border-0">
-          <CardContent className="text-center py-8">
-            <h3 className="text-2xl font-bold mb-4">Inspired by Their Stories?</h3>
-            <p className="text-lg mb-6 opacity-90">
-              Start your own kidney health journey today with personalized recommendations.
-            </p>
-            <Button variant="secondary" size="lg" className="bg-white/20 text-white border-white/20 hover:bg-white/30">
-              Get Your Health Assessment
-            </Button>
-          </CardContent>
-        </Card>
       </div>
+
+      {/* ---------- Details Modal ---------- */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-2xl rounded-2xl p-0 overflow-hidden">
+          {selected && (
+            <>
+              <div className="bg-gradient-primary/10 px-6 py-5 border-b">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl">
+                    {selected.name}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {selected.age ? `${selected.age} years old • ${selected.gender ?? "—"}` : selected.gender ?? "—"}
+                  </DialogDescription>
+                </DialogHeader>
+                {selected.stage && (
+                  <div className="mt-3">
+                    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                      {selected.stage}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              <ScrollArea className="max-h-[70vh]">
+                <div className="p-6 space-y-6">
+                  {selected.diagnosis && (
+                    <div className="flex items-center space-x-2">
+                      <Heart className="h-5 w-5 text-red-500" />
+                      <span className="font-medium">{selected.diagnosis}</span>
+                    </div>
+                  )}
+
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {selected.story || "No story available."}
+                  </p>
+
+                  {/* vitals */}
+                  {selected.vitals && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">Vitals</h4>
+                      <div className="grid grid-cols-3 gap-3 text-sm">
+                        <div className="rounded-lg bg-muted px-3 py-2">
+                          <div className="text-xs text-muted-foreground">BMI</div>
+                          <div className="font-medium">{selected.vitals.bmi ?? "—"}</div>
+                        </div>
+                        <div className="rounded-lg bg-muted px-3 py-2">
+                          <div className="text-xs text-muted-foreground">eGFR</div>
+                          <div className="font-medium">{selected.vitals.egfr ?? "—"}</div>
+                        </div>
+                        <div className="rounded-lg bg-muted px-3 py-2">
+                          <div className="text-xs text-muted-foreground">Hemoglobin</div>
+                          <div className="font-medium">{selected.vitals.hemoglobin ?? "—"}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* risk factors */}
+                  {selected.riskFactors && selected.riskFactors.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">Risk Factors</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {selected.riskFactors.map((rf, i) => (
+                          <Badge key={i} variant="outline">{rf}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* lab flags */}
+                  {selected.labFlags && selected.labFlags.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">Lab Flags</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {selected.labFlags.map((f, i) => (
+                          <Badge key={i} variant="outline">{f}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* improvements */}
+                  {selected.improvements && selected.improvements.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">Key Improvements</h4>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        {selected.improvements.map((imp, i) => (
+                          <li key={i} className="flex items-center space-x-2">
+                            <div className="w-1 h-1 bg-secondary rounded-full" />
+                            <span>{imp}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* similarity */}
+                  {typeof selected.matchScore === "number" && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">Similarity Match</h4>
+                      <div className="flex items-center gap-3">
+                        <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-primary rounded-full"
+                            style={{ width: `${selected.matchScore}%` }}
+                          />
+                        </div>
+                        <span className="text-sm font-medium">{selected.matchScore}%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+
+              <div className="p-4 border-t flex justify-end">
+                <Button onClick={() => setOpen(false)} className="px-6">
+                  Close
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

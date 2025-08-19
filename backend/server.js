@@ -1,22 +1,37 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const testRoutes = require('./routes/test.routes'); // import routes
+// backend/server.js
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+
+// import your patients routes
+const patientRoutes = require("./routes/patient.routes");
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = 5000; // you can change this if needed
 
-// Middleware
+/* ---------- middleware ---------- */
+app.use(cors());
 app.use(express.json());
 
-// Routes
-app.use('/', testRoutes); // use routes
+/* ---------- health check ---------- */
+app.get("/health", (_req, res) => res.json({ ok: true }));
 
-// DB connection
-mongoose.connect('mongodb+srv://lynnkhant:dfXOCnB2dZZ9cGmX@cluster0.wqyif61.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+/* ---------- routes ---------- */
+app.use("/patients", patientRoutes);
+
+/* ---------- db connect ---------- */
+const mongoUri =
+  "mongodb+srv://hannithaw4723:iZxgDpAb0JBz368N@cluster0.wqyif61.mongodb.net/Kidney?retryWrites=true&w=majority&appName=Cluster0";
+
+mongoose
+  .connect(mongoUri) 
   .then(() => {
-    console.log('MongoDB connected');
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
+    console.log("✅ MongoDB connected");
+    app.listen(PORT, () =>
+      console.log(`✅ Server running at http://localhost:${PORT}`)
+    );
   })
-  .catch(err => console.error(err));
+  .catch((err) => {
+    console.error("❌ Mongo connection error:", err.message);
+    process.exit(1);
+  });

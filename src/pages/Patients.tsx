@@ -1,3 +1,4 @@
+// src/pages/Patients.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle
@@ -15,7 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Heart, Search, Filter, Users } from "lucide-react";
 
 type PatientCard = {
-  id: number;
+  id?: number;
   name?: string;
   age?: number | null;
   gender?: string;
@@ -30,12 +31,17 @@ type PatientCard = {
   vitals?: { bmi?: number | null; egfr?: number | null; hemoglobin?: number | null };
   labFlags?: string[];
   matchScore?: number;
+  _id?: string;
 };
+
+// Prefer .env value; fall back to /api so you can use a Vite proxy in dev
+const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
 export default function Patients() {
   const [patients, setPatients] = useState<PatientCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [genderFilter, setGenderFilter] = useState("all");
@@ -45,21 +51,26 @@ export default function Patients() {
   const [selected, setSelected] = useState<PatientCard | null>(null);
 
   useEffect(() => {
-    const load = async () => {
+    const ctrl = new AbortController();
+    (async () => {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch("/api/patients?limit=9");
+        const res = await fetch(`${API_BASE}/patients?limit=9`, {
+          signal: ctrl.signal,
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: PatientCard[] = await res.json();
-        setPatients(data);
+        setPatients(Array.isArray(data) ? data : []);
       } catch (e: any) {
-        setError(e?.message || "Failed to load patients");
+        if (e.name !== "AbortError") {
+          setError(e?.message || "Failed to load patients");
+        }
       } finally {
         setLoading(false);
       }
-    };
-    load();
+    })();
+    return () => ctrl.abort();
   }, []);
 
   const filteredPatients = useMemo(() => {
@@ -83,8 +94,8 @@ export default function Patients() {
     switch (stage) {
       case "Stage 1": return "bg-secondary text-secondary-foreground";
       case "Stage 2": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
-      case "Stage 3": return "bg-warning/10 text-warning-foreground";
-      case "Stage 4": return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
+      case "Stage 3": return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
+      case "Stage 4": return "bg-warning/10 text-warning-foreground";
       case "Stage 5": return "bg-destructive/10 text-destructive-foreground";
       default: return "bg-muted text-muted-foreground";
     }
@@ -184,7 +195,7 @@ export default function Patients() {
             const previewFlags = topN(p.labFlags, 1);
             return (
               <Card
-                key={p.id ?? index}
+                key={p._id || p.id || index}
                 className="shadow-card border-0 hover:shadow-hover transition-all duration-300 animate-fade-in"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
@@ -237,11 +248,10 @@ export default function Patients() {
                   )}
 
                   <div className="pt-2">
-                    <Button
+                    <Button className="bg-green-500 w-full text-white px-4 py-2 rounded-lg 
+                   hover:bg-green-600 transition-colors"
                       variant="outline"
-                      onClick={() => openModal(p)}
-                      className="w-full"
-                    >
+                      onClick={() => openModal(p)}>
                       View details
                     </Button>
                   </div>
@@ -342,21 +352,6 @@ export default function Patients() {
                           <Badge key={i} variant="outline">{f}</Badge>
                         ))}
                       </div>
-                    </div>
-                  )}
-
-                  {/* improvements */}
-                  {selected.improvements && selected.improvements.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">Key Improvements</h4>
-                      <ul className="text-sm text-muted-foreground space-y-1">
-                        {selected.improvements.map((imp, i) => (
-                          <li key={i} className="flex items-center space-x-2">
-                            <div className="w-1 h-1 bg-secondary rounded-full" />
-                            <span>{imp}</span>
-                          </li>
-                        ))}
-                      </ul>
                     </div>
                   )}
 

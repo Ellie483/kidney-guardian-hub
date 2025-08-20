@@ -18,12 +18,15 @@ app.use(express.json());
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 /* ---------- routes ---------- */
-app.use("/patients", patientRoutes);
+
 app.use("/api/users", usersRoutes);
+app.use("/api/patients", patientRoutes);
 
 /* ---------- db connect ---------- */
 const mongoUri =
   "mongodb+srv://mptmayphyothu78:CZEoFA6D2BFrRE54@cluster0.wqyif61.mongodb.net/Kidney?retryWrites=true&w=majority&appName=Cluster0";
+// const mongoUri =
+//   "mongodb+srv://hannithaw4723:iZxgDpAb0JBz368N@cluster0.wqyif61.mongodb.net/Kidney?retryWrites=true&w=majority&appName=Cluster0";
 
 mongoose
   .connect(mongoUri, {dbName: "Kidney"}) 

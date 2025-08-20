@@ -4,22 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Heart, User, Mail, Lock, CheckCircle } from "lucide-react";
+import { Heart, User, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 interface SignupProps {
   onSignup: (userData: any) => void;
 }
-
-const lifestyleQuestions = [
-  { id: "smokes", label: "Do you smoke or use tobacco?" },
-  { id: "diabetic", label: "Do you have diabetes?" },
-  { id: "highBP", label: "Do you have high blood pressure?" },
-  { id: "exercise", label: "Do you exercise regularly (3+ times per week)?" },
-  { id: "familyHistory", label: "Does your family have a history of kidney disease?" },
-  { id: "heartDisease", label: "Do you have heart disease?" },
-];
 
 export default function Signup({ onSignup }: SignupProps) {
   const [step, setStep] = useState(1);
@@ -28,11 +18,21 @@ export default function Signup({ onSignup }: SignupProps) {
     email: "",
     password: "",
     confirmPassword: "",
-    lifestyle: {} as Record<string, boolean>,
+    age: "",
+    gender: "",
+    heightFeet: "",
+    heightInches: "",
+    weight: "",
+    medicalConditions: [] as string[],
+    bloodType: "",
+    familyHistory: "",
+    medications: "",
+    smokeAlcohol: "",
   });
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Step 1: Basic Info
   const handleBasicInfo = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
@@ -42,29 +42,23 @@ export default function Signup({ onSignup }: SignupProps) {
     setStep(2);
   };
 
-  const handleLifestyleChange = (questionId: string, checked: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      lifestyle: {
-        ...prev.lifestyle,
-        [questionId]: checked
-      }
-    }));
+  // Step 2: Handle checkbox changes for medical conditions
+  const handleMedicalConditionChange = (condition: string, checked: boolean) => {
+    setFormData(prev => {
+      const updatedConditions = checked
+        ? [...prev.medicalConditions, condition]
+        : prev.medicalConditions.filter(c => c !== condition);
+      return { ...prev, medicalConditions: updatedConditions };
+    });
   };
 
-  const handleComplete = async (e: React.FormEvent) => {
+  // Step 2: Complete Signup
+  const handleComplete = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate API call
     setTimeout(() => {
-      const userData = {
-        name: formData.name,
-        email: formData.email,
-        lifestyle: formData.lifestyle,
-        registeredAt: new Date().toISOString(),
-      };
-      
+      const userData = { ...formData, registeredAt: new Date().toISOString() };
       onSignup(userData);
       toast.success("Account created successfully! Welcome to KidneyGuard.");
       navigate("/");
@@ -75,6 +69,7 @@ export default function Signup({ onSignup }: SignupProps) {
   return (
     <div className="min-h-screen bg-gradient-dashboard flex items-center justify-center p-4">
       <div className="w-full max-w-lg animate-fade-in">
+        {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <Heart className="h-12 w-12 text-primary" />
@@ -87,16 +82,16 @@ export default function Signup({ onSignup }: SignupProps) {
           </p>
         </div>
 
+        {/* Card */}
         <Card className="shadow-card border-0">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">
-              {step === 1 ? "Create Account" : "Lifestyle Assessment"}
+              {step === 1 ? "Create Account" : "Lifestyle & Health Info"}
             </CardTitle>
             <CardDescription className="text-center">
-              {step === 1 
+              {step === 1
                 ? "Enter your basic information to get started"
-                : "Help us personalize your experience"
-              }
+                : "Provide your health details for personalized recommendations"}
             </CardDescription>
             <div className="flex justify-center space-x-2 mt-4">
               <div className={`w-3 h-3 rounded-full ${step >= 1 ? 'bg-primary' : 'bg-muted'}`} />
@@ -104,9 +99,11 @@ export default function Signup({ onSignup }: SignupProps) {
             </div>
           </CardHeader>
 
+          {/* Form */}
           {step === 1 ? (
             <form onSubmit={handleBasicInfo}>
               <CardContent className="space-y-4">
+                {/* Name */}
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
                   <div className="relative">
@@ -121,6 +118,8 @@ export default function Signup({ onSignup }: SignupProps) {
                     />
                   </div>
                 </div>
+
+                {/* Email */}
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <div className="relative">
@@ -136,6 +135,8 @@ export default function Signup({ onSignup }: SignupProps) {
                     />
                   </div>
                 </div>
+
+                {/* Password */}
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
@@ -151,6 +152,8 @@ export default function Signup({ onSignup }: SignupProps) {
                     />
                   </div>
                 </div>
+
+                {/* Confirm Password */}
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <div className="relative">
@@ -167,42 +170,158 @@ export default function Signup({ onSignup }: SignupProps) {
                   </div>
                 </div>
               </CardContent>
+
               <div className="px-6 pb-6">
-                <Button type="submit" className="w-full">
-                  Continue to Lifestyle Assessment
-                </Button>
+                <Button type="submit" className="w-full">Continue to Lifestyle Assessment</Button>
                 <p className="text-center text-sm text-muted-foreground mt-4">
                   Already have an account?{" "}
-                  <Link to="/login" className="text-primary hover:underline font-medium">
-                    Sign in here
-                  </Link>
+                  <Link to="/login" className="text-primary hover:underline font-medium">Sign in here</Link>
                 </p>
               </div>
             </form>
           ) : (
             <form onSubmit={handleComplete}>
               <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground mb-4">
-                  Please answer these questions to help us provide personalized recommendations:
-                </p>
-                {lifestyleQuestions.map((question) => (
-                  <div key={question.id} className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
-                    <Checkbox
-                      id={question.id}
-                      checked={formData.lifestyle[question.id] || false}
-                      onCheckedChange={(checked) => 
-                        handleLifestyleChange(question.id, checked as boolean)
-                      }
-                    />
-                    <Label
-                      htmlFor={question.id}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                    >
-                      {question.label}
-                    </Label>
+                {/* Age */}
+                <Input
+                  type="number"
+                  placeholder="Age"
+                  min={0}
+                  value={formData.age}
+                  onChange={(e) => setFormData(prev => ({ ...prev, age: e.target.value }))}
+                  required
+                />
+
+                {/* Gender */}
+                <select
+                  className="w-full border rounded p-2"
+                  value={formData.gender}
+                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                  required
+                >
+                  <option value="">Select Gender</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                  <option>Prefer not to say</option>
+                </select>
+
+                {/* Height */}
+                <div className="flex space-x-2">
+                  {/* Feet */}
+                  <div className="flex-1">
+                  <Input
+                    type="number"
+                    placeholder="Feet"
+                    min={0}
+                    value={formData.heightFeet}
+                    onChange={(e) => setFormData(prev => ({ ...prev, heightFeet: e.target.value }))}
+                    required
+                  />
                   </div>
-                ))}
+
+                  {/* Inches */}
+                  <div className="flex-1">
+                  <Input
+                    type="number"
+                    placeholder="Inches"
+                    min={0}
+                    max={11}
+                    value={formData.heightInches}
+                    onChange={(e) => setFormData(prev => ({ ...prev, heightInches: e.target.value }))}
+                    required
+                  />
+                  </div>
+                </div>
+
+
+                {/* Weight */}
+                <Input
+                  type="number"
+                  placeholder="Weight (lb)"
+                  value={formData.weight}
+                  onChange={(e) => setFormData(prev => ({ ...prev, weight: e.target.value }))}
+                  required
+                />
+
+                {/* Medical Conditions */}
+                <div>
+                  <label className="block font-medium mb-1">Have you been diagnosed with:</label>
+                  <div className="space-y-1">
+                    {["Chronic Kidney Disease", "Hypertension", "Diabetes","None"].map(condition => (
+                      <label key={condition} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={formData.medicalConditions.includes(condition)}
+                          onChange={(e) => handleMedicalConditionChange(condition, e.target.checked)}
+                        />
+                        <span>{condition}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Blood Type */}
+                <select
+                  className="w-full border rounded p-2"
+                  value={formData.bloodType}
+                  onChange={(e) => setFormData(prev => ({ ...prev, bloodType: e.target.value }))}
+                  required
+                >
+                  <option value="">Blood Type</option>
+                  {["A", "B", "AB", "O"].map(type => (
+                    <option key={type}>{type}</option>
+                  ))}
+                </select>
+
+                {/* Family History */}
+                <div>
+                  <label className="block font-medium mb-1">Family history of kidney disease?</label>
+                  <div className="flex space-x-4">
+                    {["Yes", "No"].map(option => (
+                      <label key={option}>
+                        <input
+                          type="radio"
+                          name="familyHistory"
+                          value={option}
+                          checked={formData.familyHistory === option}
+                          onChange={(e) => setFormData(prev => ({ ...prev, familyHistory: e.target.value }))}
+                        />{" "}
+                        {option}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Smoking / Alcohol */}
+                <div>
+                  <label className="block font-medium mb-1">Smoking or alcohol consumption?</label>
+                  <div className="flex space-x-4">
+                    {["Yes", "No"].map(option => (
+                      <label key={option}>
+                        <input
+                          type="radio"
+                          name="smokeAlcohol"
+                          value={option}
+                          checked={formData.smokeAlcohol === option}
+                          onChange={(e) => setFormData(prev => ({ ...prev, smokeAlcohol: e.target.value }))}
+                        />{" "}
+                        {option}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Medications */}
+                <textarea
+                  className="w-full border rounded p-2"
+                  placeholder="List medications affecting kidney function (if any)"
+                  value={formData.medications}
+                  onChange={(e) => setFormData(prev => ({ ...prev, medications: e.target.value }))}
+                />
+
+                
               </CardContent>
+
               <div className="px-6 pb-6 flex space-x-3">
                 <Button
                   type="button"
@@ -227,3 +346,4 @@ export default function Signup({ onSignup }: SignupProps) {
     </div>
   );
 }
+

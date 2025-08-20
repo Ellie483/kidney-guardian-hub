@@ -1,8 +1,23 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Heart, Droplets, Activity, AlertTriangle, Users, BookOpen, Gamepad2, FlaskConical } from "lucide-react";
+import {
+  Heart,
+  Droplets,
+  Activity,
+  AlertTriangle,
+  Users,
+  BookOpen,
+  Gamepad2,
+  FlaskConical
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import heroImage from "@/assets/kidney-hero.jpg";
 
@@ -10,7 +25,17 @@ interface DashboardProps {
   user: {
     name: string;
     email: string;
-    lifestyle: Record<string, boolean>;
+    age?: string;
+    gender?: string;
+    heightFeet?: string;
+    heightInches?: string;
+    weight?: string;
+    bloodType?: string;
+    medicalConditions?: string[];
+    medications?: string;
+    familyHistory?: string;
+    smokeAlcohol?: string;
+    registeredAt?: string;
   };
 }
 
@@ -18,11 +43,11 @@ interface DashboardProps {
 const mockPatients = [
   {
     id: 1,
-    name: "Sarah M",
+    name: "Sarah M.",
     age: 45,
     stage: "Stage 2",
     story: "Managed to improve her kidney function through lifestyle changes.",
-    lifestyle: { diabetic: true, exercise: true, smokes: false },
+    medicalConditions: ["Diabetes"],
     matchReasons: ["Also has diabetes", "Regular exerciser"]
   },
   {
@@ -31,7 +56,7 @@ const mockPatients = [
     age: 52,
     stage: "Stage 3",
     story: "Successfully quit smoking and lowered his blood pressure.",
-    lifestyle: { smokes: false, highBP: true, exercise: false },
+    medicalConditions: ["Hypertension"],
     matchReasons: ["Former smoker", "Managing blood pressure"]
   },
   {
@@ -40,47 +65,42 @@ const mockPatients = [
     age: 38,
     stage: "Stage 1",
     story: "Early detection helped her maintain healthy kidneys.",
-    lifestyle: { familyHistory: true, exercise: true, diabetic: false },
+    medicalConditions: ["Family history"],
     matchReasons: ["Family history", "Proactive about health"]
   }
 ];
 
 export default function Dashboard({ user }: DashboardProps) {
-  // Calculate risk factors and personalized tips
-  const riskFactors = Object.entries(user.lifestyle).filter(([key, value]) => 
-    value && !['exercise'].includes(key)
-  ).length;
+  // Risk factors: count medical conditions + smoking/alcohol
+  const riskFactors =
+    (user.medicalConditions?.length || 0) +
+    (user.smokeAlcohol === "Yes" ? 1 : 0);
 
-  const healthScore = Math.max(20, 100 - (riskFactors * 15));
+  const healthScore = Math.max(20, 100 - riskFactors * 15);
 
+  // Personalized tips based on Step 2 data
   const getPersonalizedTips = () => {
-    const tips = [];
-    if (user.lifestyle.smokes) tips.push("Consider quitting smoking - your kidneys will thank you!");
-    if (user.lifestyle.diabetic) tips.push("Monitor your blood sugar levels regularly");
-    if (user.lifestyle.highBP) tips.push("Keep your blood pressure under control");
-    if (!user.lifestyle.exercise) tips.push("Start with 30 minutes of exercise, 3 times per week");
-    if (user.lifestyle.familyHistory) tips.push("Regular check-ups are extra important given your family history");
-    
-    // Always include general tips
-    tips.push("Drink 8-10 glasses of water daily");
-    tips.push("Limit processed foods and excess sodium");
-    
-    return tips.slice(0, 4); // Show top 4 tips
+    const tips: string[] = [];
+
+    if (user.smokeAlcohol === "Yes") tips.push("Consider reducing smoking/alcohol consumption for kidney health.");
+    if (user.medicalConditions?.includes("Diabetes")) tips.push("Monitor your blood sugar levels regularly.");
+    if (user.medicalConditions?.includes("Hypertension")) tips.push("Keep your blood pressure under control.");
+    if (!user.age) tips.push("Stay physically active to maintain kidney health.");
+    if (user.familyHistory === "Yes") tips.push("Regular check-ups are important due to family history.");
+    tips.push("Drink 8-10 glasses of water daily.");
+    tips.push("Limit processed foods and excess sodium.");
+
+    return tips.slice(0, 4); // top 4 tips
   };
 
   const getSimilarPatients = () => {
-    // Simple matching based on lifestyle factors
-    return mockPatients.filter(patient => {
-      const userFactors = Object.entries(user.lifestyle).filter(([_, value]) => value);
-      const patientFactors = Object.entries(patient.lifestyle).filter(([_, value]) => value);
-      
-      // Find common factors
-      const commonFactors = userFactors.filter(([key, _]) => 
-        patientFactors.some(([pKey, _]) => pKey === key)
-      );
-      
-      return commonFactors.length > 0;
-    }).slice(0, 2);
+    return mockPatients
+      .filter(patient => {
+        const userConditions = user.medicalConditions || [];
+        const patientConditions = patient.medicalConditions || [];
+        return userConditions.some(cond => patientConditions.includes(cond));
+      })
+      .slice(0, 2);
   };
 
   const personalizedTips = getPersonalizedTips();
@@ -90,7 +110,7 @@ export default function Dashboard({ user }: DashboardProps) {
     <div className="min-h-screen bg-gradient-dashboard">
       {/* Hero Section */}
       <div className="relative">
-        <div 
+        <div
           className="h-64 bg-cover bg-center rounded-b-3xl mx-4 mt-4 relative overflow-hidden"
           style={{ backgroundImage: `url(${heroImage})` }}
         >
@@ -98,7 +118,7 @@ export default function Dashboard({ user }: DashboardProps) {
           <div className="relative h-full flex items-center justify-center text-center text-white p-6">
             <div>
               <h1 className="text-3xl md:text-4xl font-bold mb-2">
-                Welcome back, {user.name.split(' ')[0]}!
+                Welcome back, {user.name.split(" ")[0]}!
               </h1>
               <p className="text-lg opacity-90">
                 Your personalized kidney health dashboard
@@ -125,9 +145,7 @@ export default function Dashboard({ user }: DashboardProps) {
                 <Progress value={healthScore} className="h-3 mb-4" />
                 <div className="flex items-center justify-center space-x-2">
                   {healthScore >= 80 ? (
-                    <Badge variant="default" className="bg-secondary text-secondary-foreground">
-                      Excellent
-                    </Badge>
+                    <Badge variant="default" className="bg-secondary text-secondary-foreground">Excellent</Badge>
                   ) : healthScore >= 60 ? (
                     <Badge variant="secondary">Good</Badge>
                   ) : (
@@ -210,28 +228,22 @@ export default function Dashboard({ user }: DashboardProps) {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {similarPatients.map((patient) => (
+                {similarPatients.map(patient => (
                   <div key={patient.id} className="p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium">{patient.name}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {patient.stage}
-                      </Badge>
+                      <Badge variant="outline" className="text-xs">{patient.stage}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">{patient.story}</p>
                     <div className="flex flex-wrap gap-1">
                       {patient.matchReasons.slice(0, 2).map((reason, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-xs">
-                          {reason}
-                        </Badge>
+                        <Badge key={idx} variant="secondary" className="text-xs">{reason}</Badge>
                       ))}
                     </div>
                   </div>
                 ))}
                 <Link to="/patients">
-                  <Button variant="outline" size="sm" className="w-full">
-                    Meet More Patients
-                  </Button>
+                  <Button variant="outline" size="sm" className="w-full">Meet More Patients</Button>
                 </Link>
               </div>
             </CardContent>

@@ -52,10 +52,34 @@ const App = () => {
     localStorage.setItem('kidneyguard_user', JSON.stringify(mockUser));
   };
 
-  const handleSignup = (userData: User) => {
-    setUser(userData);
-    localStorage.setItem('kidneyguard_user', JSON.stringify(userData));
-  };
+  const handleSignup = async (userData: User) => {
+  try {
+    console.log("➡️ Sending signup data:", userData);
+
+    // Send data to backend
+    const response = await fetch("http://localhost:5000/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to store user in MongoDB");
+    }
+
+    const result = await response.json();
+    console.log("✅ Server response:", result);
+
+    // Save in React state + localStorage
+    setUser(result.user);
+    localStorage.setItem("kidneyguard_user", JSON.stringify(result.user));
+
+    alert("Registration complete!");
+  } catch (error) {
+    console.error("❌ Signup error:", error);
+    alert("Signup failed. Please try again.");
+  }
+};
 
   const handleLogout = () => {
     setUser(null);

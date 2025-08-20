@@ -1,5 +1,5 @@
 // src/pages/Patients.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle
 } from "@/components/ui/card";
@@ -13,9 +13,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Heart, Search, Filter, Users } from "lucide-react";
+import { Heart, Filter, Users } from "lucide-react";
 
 type PatientCard = {
+  _id?: string;
   id?: number;
   name?: string;
   age?: number | null;
@@ -23,96 +24,158 @@ type PatientCard = {
   stage?: string;
   diagnosis?: string;
   story?: string;
-  lifestyle?: {
-    diabetic?: boolean; exercise?: boolean; smokes?: boolean; highBP?: boolean;
-  };
+  lifestyle?: { diabetic?: boolean; exercise?: boolean; smokes?: boolean; highBP?: boolean };
   riskFactors?: string[];
   improvements?: string[];
   vitals?: { bmi?: number | null; egfr?: number | null; hemoglobin?: number | null };
   labFlags?: string[];
   matchScore?: number;
-  _id?: string;
 };
 
-// Prefer .env value; fall back to /api so you can use a Vite proxy in dev
+// Prefer .env value; fall back to /api so you can use the Vite proxy in dev
 const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
+/** little util to coerce number or undefined */
+const toNum = (v: string) => (v === "" || v == null ? undefined : Number(v));
+
 export default function Patients() {
+  // results (examples from /search/cohort)
   const [patients, setPatients] = useState<PatientCard[]>([]);
+  const [total, setTotal] = useState<number>(0);
+  const [kpi, setKpi] = useState<{
+    avgEgfr: number | null;
+    medBmi: number | null;
+    pctSmokers: number | null;
+    pctDiabetes: number | null;
+    pctHyperten: number | null;
+  }>({ avgEgfr: null, medBmi: null, pctSmokers: null, pctDiabetes: null, pctHyperten: null });
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [stageFilter, setStageFilter] = useState("all");
-  const [genderFilter, setGenderFilter] = useState("all");
+  // ------- filters for cohort search -------
+  const [gender, setGender] = useState<"all" | "male" | "female">("all");
+  const [ageMin, setAgeMin] = useState<string>(""); // use strings in inputs, coerce later
+  const [ageMax, setAgeMax] = useState<string>("");
+
+  const [smoking, setSmoking] = useState<"any" | "yes" | "no">("any");
+  const [diabetes, setDiabetes] = useState<"any" | "yes" | "no">("any");
+  const [hypertension, setHypertension] = useState<"any" | "yes" | "no">("any");
+  const [ckd, setCkd] = useState<"any" | "yes" | "no">("any");
+
+  // activity multi-select using native checkboxes
+  const [actLow, setActLow] = useState(true);
+  const [actMed, setActMed] = useState(true);
+  const [actHigh, setActHigh] = useState(true);
 
   // modal state
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<PatientCard | null>(null);
 
-  useEffect(() => {
-    const ctrl = new AbortController();
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await fetch(`${API_BASE}/patients?limit=9`, {
-          signal: ctrl.signal,
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: PatientCard[] = await res.json();
-        setPatients(Array.isArray(data) ? data : []);
-      } catch (e: any) {
-        if (e.name !== "AbortError") {
-          setError(e?.message || "Failed to load patients");
-        }
-      } finally {
-        setLoading(false);
-      }
-    })();
-    return () => ctrl.abort();
-  }, []);
+  const activityArray = useMemo(() => {
+    const arr: string[] = [];
+    if (actLow) arr.push("low");
+    if (actMed) arr.push("moderate");
+    if (actHigh) arr.push("high");
+    return arr;
+  }, [actLow, actMed, actHigh]);
 
-  const filteredPatients = useMemo(() => {
-    return patients.filter((p) => {
-      const name = p.name ?? "";
-      const story = p.story ?? "";
-      const stage = p.stage ?? "";
-      const gender = p.gender ?? "";
-      const matchesSearch =
-        name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        story.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStage =
-        stageFilter === "all" || stage.toLowerCase().includes(stageFilter.toLowerCase());
-      const matchesGender =
-        genderFilter === "all" || gender.toLowerCase() === genderFilter.toLowerCase();
-      return matchesSearch && matchesStage && matchesGender;
-    });
-  }, [patients, searchTerm, stageFilter, genderFilter]);
+  const booleanChoice = (v: "any" | "yes" | "no") =>
+    v === "yes" ? true : v === "no" ? false : undefined;
+
+  const fetchCohort = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const body = {
+        filters: {
+          gender: gender === "all" ? undefined : gender,
+          age: {
+            min: toNum(ageMin),
+            max: toNum(ageMax),
+          },
+          smoking: booleanChoice(smoking),
+          diabetes: booleanChoice(diabetes),
+          hypertension: booleanChoice(hypertension),
+          ckd: booleanChoice(ckd),
+          activity: activityArray.length === 3 ? undefined : activityArray, // send only if not all
+        },
+        sampleLimit: 9, // how many example cards to show
+      };
+
+      const res = await fetch(`${API_BASE}/search/cohort`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      // API returns { total, summary, stage, ageHistogram, examples }
+      setTotal(data.total ?? 0);
+      setKpi({
+        avgEgfr: data.summary?.avgEgfr ?? null,
+        medBmi: data.summary?.medBmi ?? null,
+        pctSmokers: data.summary?.pctSmokers ?? null,
+        pctDiabetes: data.summary?.pctDiabetes ?? null,
+        pctHyperten: data.summary?.pctHyperten ?? null,
+      });
+
+      // examples already shaped for cards by the backend (name, age, stage, lifestyle, vitals)
+      const examples: PatientCard[] = Array.isArray(data.examples) ? data.examples : [];
+      // add placeholders the UI expects
+      const hydrated = examples.map((e, i) => ({
+        id: i,
+        diagnosis: "—",
+        story: "Explore lifestyle and lab patterns similar to yours.",
+        riskFactors: [
+          e.lifestyle?.diabetic ? "Diabetes" : undefined,
+          e.lifestyle?.highBP ? "High Blood Pressure" : undefined,
+          e.lifestyle?.smokes ? "Smoking" : undefined,
+        ].filter(Boolean) as string[],
+        labFlags: [],
+        ...e,
+      }));
+
+      setPatients(hydrated);
+    } catch (e: any) {
+      setError(e?.message || "Cohort search failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [gender, ageMin, ageMax, smoking, diabetes, hypertension, ckd, activityArray]);
+
+  // initial load
+  useEffect(() => {
+    fetchCohort();
+  }, []); // eslint-disable-line
+
+  const requery = () => fetchCohort();
 
   const getStageColor = (stage: string) => {
     switch (stage) {
       case "Stage 1": return "bg-secondary text-secondary-foreground";
       case "Stage 2": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
-      case "Stage 3": return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
-      case "Stage 4": return "bg-warning/10 text-warning-foreground";
+      case "Stage 3": return "bg-warning/10 text-warning-foreground";
+      case "Stage 4": return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
       case "Stage 5": return "bg-destructive/10 text-destructive-foreground";
       default: return "bg-muted text-muted-foreground";
     }
   };
-
-  const topN = (arr: string[] | undefined, n: number) =>
-    Array.isArray(arr) ? arr.slice(0, n) : [];
 
   const openModal = (p: PatientCard) => {
     setSelected(p);
     setOpen(true);
   };
 
+  // No name/story search now (privacy). We just render the fetched examples.
+  const filteredPatients = patients;
+
   if (loading) {
     return (
       <div className="min-h-screen grid place-items-center">
-        <p className="text-muted-foreground">Loading patients…</p>
+        <p className="text-muted-foreground">Loading cohort…</p>
       </div>
     );
   }
@@ -133,66 +196,150 @@ export default function Patients() {
           <div className="flex justify-center mb-4">
             <Users className="h-12 w-12 text-primary" />
           </div>
-          <h1 className="text-4xl font-bold mb-4">Meet the Patients</h1>
+          <h1 className="text-4xl font-bold mb-2">Meet the Patients</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Real stories from people managing kidney disease. Find inspiration and learn from similar journeys.
           </p>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-8 shadow-card border-0 animate-slide-up">
+        {/* Cohort Filters */}
+        <Card className="mb-6 shadow-card border-0 animate-slide-up">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Filter className="h-5 w-5" />
               <span>Find Similar Patients</span>
             </CardTitle>
-            <CardDescription>Filter by criteria to find patients with similar profiles</CardDescription>
+            <CardDescription>Filter by criteria to explore a cohort. Results are anonymized.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name or story..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              {/* Age range */}
+              <div className="flex gap-2">
+                <Input placeholder="Age min" value={ageMin} onChange={(e) => setAgeMin(e.target.value)} />
+                <Input placeholder="Age max" value={ageMax} onChange={(e) => setAgeMax(e.target.value)} />
               </div>
-              <Select value={stageFilter} onValueChange={setStageFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by CKD Stage" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Stages</SelectItem>
-                  <SelectItem value="1">Stage 1</SelectItem>
-                  <SelectItem value="2">Stage 2</SelectItem>
-                  <SelectItem value="3">Stage 3</SelectItem>
-                  <SelectItem value="4">Stage 4</SelectItem>
-                  <SelectItem value="5">Stage 5</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={genderFilter} onValueChange={setGenderFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by Gender" />
-                </SelectTrigger>
+
+              {/* Gender */}
+              <Select value={gender} onValueChange={(v: any) => setGender(v)}>
+                <SelectTrigger><SelectValue placeholder="Gender" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Genders</SelectItem>
                   <SelectItem value="male">Male</SelectItem>
                   <SelectItem value="female">Female</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Smoking */}
+              <Select value={smoking} onValueChange={(v: any) => setSmoking(v)}>
+                <SelectTrigger><SelectValue placeholder="Smoking" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Smoking: Any</SelectItem>
+                  <SelectItem value="yes">Smoking: Yes</SelectItem>
+                  <SelectItem value="no">Smoking: No</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Diabetes */}
+              <Select value={diabetes} onValueChange={(v: any) => setDiabetes(v)}>
+                <SelectTrigger><SelectValue placeholder="Diabetes" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Diabetes: Any</SelectItem>
+                  <SelectItem value="yes">Diabetes: Yes</SelectItem>
+                  <SelectItem value="no">Diabetes: No</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Hypertension */}
+              <Select value={hypertension} onValueChange={(v: any) => setHypertension(v)}>
+                <SelectTrigger><SelectValue placeholder="Hypertension" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Hypertension: Any</SelectItem>
+                  <SelectItem value="yes">Hypertension: Yes</SelectItem>
+                  <SelectItem value="no">Hypertension: No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+              {/* CKD */}
+              <Select value={ckd} onValueChange={(v: any) => setCkd(v)}>
+                <SelectTrigger><SelectValue placeholder="CKD" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">CKD: Any</SelectItem>
+                  <SelectItem value="yes">CKD: Yes (eGFR &lt; 60)</SelectItem>
+                  <SelectItem value="no">CKD: No (eGFR ≥ 60)</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Activity (multi) */}
+              <div className="col-span-2 text-sm rounded-lg border p-3">
+                <div className="font-medium mb-2">Activity level</div>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={actLow} onChange={() => setActLow(v => !v)} />
+                    low
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={actMed} onChange={() => setActMed(v => !v)} />
+                    moderate
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={actHigh} onChange={() => setActHigh(v => !v)} />
+                    high
+                  </label>
+                </div>
+              </div>
+
+              <div className="md:col-span-2 flex gap-3">
+                <Button className="bg-green-500 text-white hover:bg-green-600" onClick={requery}>
+                  Search cohort
+                </Button>
+                <Button variant="outline" onClick={() => {
+                  setGender("all");
+                  setAgeMin(""); setAgeMax("");
+                  setSmoking("any"); setDiabetes("any"); setHypertension("any"); setCkd("any");
+                  setActLow(true); setActMed(true); setActHigh(true);
+                }}>
+                  Reset
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Patient Cards (compact preview) */}
+        {/* KPI strip */}
+        <div className="mb-4 grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Card className="border-0 shadow-card"><CardContent className="py-3">
+            <div className="text-xs text-muted-foreground">Total matches</div>
+            <div className="text-xl font-semibold">{total}</div>
+          </CardContent></Card>
+          <Card className="border-0 shadow-card"><CardContent className="py-3">
+            <div className="text-xs text-muted-foreground">Avg eGFR</div>
+            <div className="text-xl font-semibold">{kpi.avgEgfr?.toFixed?.(1) ?? "—"}</div>
+          </CardContent></Card>
+          <Card className="border-0 shadow-card"><CardContent className="py-3">
+            <div className="text-xs text-muted-foreground">Median BMI</div>
+            <div className="text-xl font-semibold">{kpi.medBmi?.toFixed?.(1) ?? "—"}</div>
+          </CardContent></Card>
+          <Card className="border-0 shadow-card"><CardContent className="py-3">
+            <div className="text-xs text-muted-foreground">% Smokers</div>
+            <div className="text-xl font-semibold">{kpi.pctSmokers ?? "—"}%</div>
+          </CardContent></Card>
+          <Card className="border-0 shadow-card"><CardContent className="py-3">
+            <div className="text-xs text-muted-foreground">% Diabetes / % HTN</div>
+            <div className="text-xl font-semibold">
+              {kpi.pctDiabetes ?? "—"}% / {kpi.pctHyperten ?? "—"}%
+            </div>
+          </CardContent></Card>
+        </div>
+
+        {/* Patient Cards (examples) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPatients.map((p, index) => {
             const stage = p.stage || "Unknown";
             const vitals = p.vitals || {};
-            const previewRisks = topN(p.riskFactors, 2);
-            const previewFlags = topN(p.labFlags, 1);
+            const previewRisks = (p.riskFactors || []).slice(0, 2);
+            const previewFlags = (p.labFlags || []).slice(0, 1);
             return (
               <Card
                 key={p._id || p.id || index}
@@ -204,7 +351,7 @@ export default function Patients() {
                     <div>
                       <CardTitle className="text-lg">{p.name || `Patient ${index + 1}`}</CardTitle>
                       <CardDescription>
-                        {p.age ? `${p.age} years old • ${p.gender ?? "—"}` : p.gender ?? "—"}
+                        {p.age ? `${p.age} years old` : "—"}
                       </CardDescription>
                     </div>
                     <Badge className={getStageColor(stage)}>{stage}</Badge>
@@ -218,7 +365,6 @@ export default function Patients() {
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                  {/* minimal preview */}
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div>BMI: <span className="font-medium">{vitals.bmi ?? "—"}</span></div>
                     <div>eGFR: <span className="font-medium">{vitals.egfr ?? "—"}</span></div>
@@ -248,10 +394,11 @@ export default function Patients() {
                   )}
 
                   <div className="pt-2">
-                    <Button className="bg-green-500 w-full text-white px-4 py-2 rounded-lg 
-                   hover:bg-green-600 transition-colors"
+                    <Button
+                      className="bg-green-500 w-full text-white hover:bg-green-600"
                       variant="outline"
-                      onClick={() => openModal(p)}>
+                      onClick={() => openModal(p)}
+                    >
                       View details
                     </Button>
                   </div>
@@ -267,7 +414,7 @@ export default function Patients() {
               <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">No patients found</h3>
               <p className="text-muted-foreground">
-                Try adjusting your search criteria to find more patient stories.
+                Try adjusting filters to broaden your cohort.
               </p>
             </CardContent>
           </Card>
@@ -285,7 +432,7 @@ export default function Patients() {
                     {selected.name}
                   </DialogTitle>
                   <DialogDescription>
-                    {selected.age ? `${selected.age} years old • ${selected.gender ?? "—"}` : selected.gender ?? "—"}
+                    {selected.age ? `${selected.age} years old` : "—"}
                   </DialogDescription>
                 </DialogHeader>
                 {selected.stage && (
@@ -310,7 +457,6 @@ export default function Patients() {
                     {selected.story || "No story available."}
                   </p>
 
-                  {/* vitals */}
                   {selected.vitals && (
                     <div>
                       <h4 className="text-sm font-semibold mb-2">Vitals</h4>
@@ -331,7 +477,6 @@ export default function Patients() {
                     </div>
                   )}
 
-                  {/* risk factors */}
                   {selected.riskFactors && selected.riskFactors.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold mb-2">Risk Factors</h4>
@@ -343,7 +488,6 @@ export default function Patients() {
                     </div>
                   )}
 
-                  {/* lab flags */}
                   {selected.labFlags && selected.labFlags.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold mb-2">Lab Flags</h4>
@@ -355,16 +499,12 @@ export default function Patients() {
                     </div>
                   )}
 
-                  {/* similarity */}
                   {typeof selected.matchScore === "number" && (
                     <div>
                       <h4 className="text-sm font-semibold mb-2">Similarity Match</h4>
                       <div className="flex items-center gap-3">
                         <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-primary rounded-full"
-                            style={{ width: `${selected.matchScore}%` }}
-                          />
+                          <div className="h-full bg-gradient-primary rounded-full" style={{ width: `${selected.matchScore}%` }} />
                         </div>
                         <span className="text-sm font-medium">{selected.matchScore}%</span>
                       </div>

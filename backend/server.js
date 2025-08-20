@@ -3,9 +3,10 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 
-// import your patients routes
+// import your  routes
 const patientRoutes = require("./routes/patient.routes");
 const usersRoutes = require("./routes/users.routes");
+const searchRoutes  = require("./routes/search.routes"); 
 
 const app = express();
 const PORT = 5000; // you can change this if needed
@@ -18,10 +19,9 @@ app.use(express.json());
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 /* ---------- routes ---------- */
-
+app.use("/patients", patientRoutes);
+app.use("/search",  searchRoutes);
 app.use("/api/users", usersRoutes);
-app.use("/api/patients", patientRoutes);
-
 /* ---------- db connect ---------- */
 const mongoUri =
   "mongodb+srv://mptmayphyothu78:CZEoFA6D2BFrRE54@cluster0.wqyif61.mongodb.net/Kidney?retryWrites=true&w=majority&appName=Cluster0";

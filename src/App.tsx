@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Navbar } from "@/components/ui/navbar";
+
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -16,81 +17,70 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-interface User {
+// Match your backend schema
+export interface AppUser  {
+  _id?: string;
   name: string;
   email: string;
-  lifestyle: Record<string, boolean>;
+  age?: number;
+  gender?: string;
+  heightFeet?: number;
+  heightInches?: number;
+  weight?: number;
+  medicalConditions?: string[];
+  bloodType?: string;
+  familyHistory?: string;
+  medications?: string;
+  smokeAlcohol?: "Yes" | "No";
+  registeredAt?: string;
 }
 
+const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
 const App = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser  | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Restore session from localStorage
   useEffect(() => {
-    // Check for existing session
-    const savedUser = localStorage.getItem('kidneyguard_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    const saved = localStorage.getItem("kidneyguard_user");
+    if (saved) {
+      try {
+        setUser(JSON.parse(saved));
+      } catch {
+        localStorage.removeItem("kidneyguard_user");
+      }
     }
     setIsLoading(false);
   }, []);
 
-  const handleLogin = (email: string) => {
-    // Mock user data for demo
-    const mockUser = {
-      name: "John Doe",
-      email: email,
-      lifestyle: {
-        smokes: false,
-        diabetic: true,
-        highBP: false,
-        exercise: true,
-        familyHistory: true,
-      }
-    };
-    setUser(mockUser);
-    localStorage.setItem('kidneyguard_user', JSON.stringify(mockUser));
+  // Called by <Signup />
+  const handleSignup = (createdUser: AppUser ) => {
+    setUser(createdUser);
+    localStorage.setItem("kidneyguard_user", JSON.stringify(createdUser));
+    if (createdUser._id) localStorage.setItem("userId", createdUser._id);
   };
 
-  const handleSignup = async (userData: User) => {
-  try {
-    console.log("➡️ Sending signup data:", userData);
-
-    // Send data to backend
-    const response = await fetch("http://localhost:5000/api/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(userData),
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to store user in MongoDB");
-    }
-
-    const result = await response.json();
-    console.log("✅ Server response:", result);
-
-    // Save in React state + localStorage
-    setUser(result.user);
-    localStorage.setItem("kidneyguard_user", JSON.stringify(result.user));
-
-    alert("Registration complete!");
-  } catch (error) {
-    console.error("❌ Signup error:", error);
-    alert("Signup failed. Please try again.");
-  }
-};
+  // Called by <Login />
+  const handleLogin = (loggedInUser: AppUser ) => {
+    setUser(loggedInUser);
+    localStorage.setItem("kidneyguard_user", JSON.stringify(loggedInUser));
+    if (loggedInUser._id) localStorage.setItem("userId", loggedInUser._id);
+  };
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('kidneyguard_user');
+    localStorage.removeItem("kidneyguard_user");
+    localStorage.removeItem("userId");
+    // optional: call backend to clear cookie
+    fetch(`${API}/users/logout`, { method: "POST", credentials: "include" }).catch(() => {});
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-dashboard flex items-center justify-center">
         <div className="animate-pulse-gentle">
-          <div className="h-12 w-12 bg-primary rounded-full"></div>
+          <div className="h-12 w-12 bg-primary rounded-full" />
         </div>
       </div>
     );
@@ -105,75 +95,33 @@ const App = () => {
           <div className="min-h-screen bg-background">
             <Navbar isAuthenticated={!!user} onLogout={handleLogout} />
             <Routes>
-              <Route 
-                path="/" 
-                element={
-                  user ? (
-                    <Dashboard user={user} />
-                  ) : (
-                    <Navigate to="/login" replace />
-                  )
-                } 
+              <Route
+                path="/"
+                element={user ? <Dashboard user={user as any} /> : <Navigate to="/login" replace />}
               />
-              <Route 
-                path="/login" 
-                element={
-                  user ? (
-                    <Navigate to="/" replace />
-                  ) : (
-                    <Login onLogin={handleLogin} />
-                  )
-                } 
+              <Route
+                path="/login"
+                element={user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />}
               />
-              <Route 
-                path="/signup" 
-                element={
-                  user ? (
-                    <Navigate to="/" replace />
-                  ) : (
-                    <Signup onSignup={handleSignup} />
-                  )
-                } 
+              <Route
+                path="/signup"
+                element={user ? <Navigate to="/" replace /> : <Signup onSignup={handleSignup} />}
               />
-              <Route 
-                path="/patients" 
-                element={
-                  user ? (
-                    <Patients />
-                  ) : (
-                    <Navigate to="/login" replace />
-                  )
-                } 
+              <Route
+                path="/patients"
+                element={user ? <Patients /> : <Navigate to="/login" replace />}
               />
-              <Route 
-                path="/awareness" 
-                element={
-                  user ? (
-                    <Awareness />
-                  ) : (
-                    <Navigate to="/login" replace />
-                  )
-                } 
+              <Route
+                path="/awareness"
+                element={user ? <Awareness /> : <Navigate to="/login" replace />}
               />
-              <Route 
-                path="/games" 
-                element={
-                  user ? (
-                    <Games />
-                  ) : (
-                    <Navigate to="/login" replace />
-                  )
-                } 
+              <Route
+                path="/games"
+                element={user ? <Games /> : <Navigate to="/login" replace />}
               />
-              <Route 
-                path="/analysis" 
-                element={
-                  user ? (
-                    <LabAnalysis />
-                  ) : (
-                    <Navigate to="/login" replace />
-                  )
-                } 
+              <Route
+                path="/analysis"
+                element={user ? <LabAnalysis /> : <Navigate to="/login" replace />}
               />
               <Route path="*" element={<NotFound />} />
             </Routes>

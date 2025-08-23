@@ -6,9 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Heart, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
+import type { AppUser } from "@/App";
+
+const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
 interface LoginProps {
-  onLogin: (email: string) => void;
+  onLogin: (u: AppUser) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
@@ -20,41 +23,47 @@ export default function Login({ onLogin }: LoginProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
-    // Simulate API call
-    setTimeout(() => {
-      if (email && password) {
-        onLogin(email);
-        toast.success("Welcome back! Logged in successfully.");
-        navigate("/");
-      } else {
-        toast.error("Please fill in all fields.");
+    try {
+      const res = await fetch(`${API}/users/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || `Login failed (HTTP ${res.status})`);
       }
+      const data = await res.json(); // { ok: true, id, user }
+      const u: AppUser = data.user || {};
+      if (data.id) u._id = data.id;
+
+      localStorage.setItem("kidneyguard_user", JSON.stringify(u));
+      if (u._id) localStorage.setItem("userId", u._id);
+
+      onLogin(u);
+      toast.success("Welcome back! Logged in successfully.");
+      navigate("/", { replace: true });
+    } catch (err: any) {
+      toast.error(err?.message || "Login failed");
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-dashboard flex items-center justify-center p-4">
       <div className="w-full max-w-md animate-fade-in">
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <Heart className="h-12 w-12 text-primary" />
-          </div>
-          <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-            KidneyGuard
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Your partner in kidney health
-          </p>
+          <div className="flex justify-center mb-4"><Heart className="h-12 w-12 text-primary" /></div>
+          <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">KidneyGuard</h1>
+          <p className="text-muted-foreground mt-2">Your partner in kidney health</p>
         </div>
 
         <Card className="shadow-card border-0">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
-            <CardDescription className="text-center">
-              Sign in to access your personalized health dashboard
-            </CardDescription>
+            <CardDescription className="text-center">Sign in to your dashboard</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
@@ -65,9 +74,9 @@ export default function Login({ onLogin }: LoginProps) {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="Enter your email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e)=> setEmail(e.target.value)}
+                    placeholder="Enter your email"
                     className="pl-10"
                     required
                   />
@@ -80,9 +89,9 @@ export default function Login({ onLogin }: LoginProps) {
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Enter your password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e)=> setPassword(e.target.value)}
+                    placeholder="Enter your password"
                     className="pl-10"
                     required
                   />
@@ -90,21 +99,12 @@ export default function Login({ onLogin }: LoginProps) {
               </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={isLoading}
-              >
+              <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
               <p className="text-center text-sm text-muted-foreground">
                 Don't have an account?{" "}
-                <Link
-                  to="/signup"
-                  className="text-primary hover:underline font-medium"
-                >
-                  Sign up here
-                </Link>
+                <Link to="/signup" className="text-primary hover:underline font-medium">Sign up here</Link>
               </p>
             </CardFooter>
           </form>

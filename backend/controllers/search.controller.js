@@ -1,146 +1,113 @@
 // backend/controllers/search.controller.js
 const Patient = require("../models/patient.model");
 
-function boolChoice(v) {
-  if (v === true || v === false) return v;
-  return undefined;
-}
-
-exports.cohortSearch = async (req, res) => {
+// POST /search/cohort
+async function cohortSearch(req, res) {
   try {
     const { filters = {}, sampleLimit = 9 } = req.body || {};
-
-    const {
-      gender,                // "male" | "female"
-      age,                   // { min, max }
-      smoking,               // true | false | undefined
-      diabetes,              // true | false | undefined
-      hypertension,          // true | false | undefined
-      ckd,                   // true | false | undefined (egfr < 60)
-      activity               // array of ["low","moderate","high"]
-    } = filters;
-
     const where = {};
 
-    // Gender (if your data has it)
-    if (gender && gender !== "all") where.gender = gender;
+    // gender
+    if (filters.gender && typeof filters.gender === "string" && filters.gender !== "all") {
+      where.gender = filters.gender.toLowerCase();
+    }
 
-    // Age range
-    if (age?.min != null || age?.max != null) {
+    // age range
+    if (filters.age && (filters.age.min != null || filters.age.max != null)) {
       where.age_of_the_patient = {};
-      if (age.min != null) where.age_of_the_patient.$gte = Number(age.min);
-      if (age.max != null) where.age_of_the_patient.$lte = Number(age.max);
+      if (filters.age.min != null) where.age_of_the_patient.$gte = Number(filters.age.min);
+      if (filters.age.max != null) where.age_of_the_patient.$lte = Number(filters.age.max);
     }
 
-    // Boolean-ish flags stored as 1/0
-    const smokingB = boolChoice(smoking);
-    if (smokingB !== undefined) where.smoking_status = smokingB ? 1 : 0;
-
-    const diabetesB = boolChoice(diabetes);
-    if (diabetesB !== undefined) where.diabetes_mellitus_yesno = diabetesB ? 1 : 0;
-
-    const hyperB = boolChoice(hypertension);
-    if (hyperB !== undefined) where.hypertension_yesno = hyperB ? 1 : 0;
-
-    // CKD by eGFR threshold
-    const CKD_THRESHOLD = 60;
-    if (ckd === true) {
-      where.estimated_glomerular_filtration_rate_egfr = { $lt: CKD_THRESHOLD };
-    } else if (ckd === false) {
-      where.estimated_glomerular_filtration_rate_egfr = { $gte: CKD_THRESHOLD };
+    // booleans -> dataset fields
+    if (typeof filters.smoking === "boolean") {
+      where.smoking_status = filters.smoking ? 1 : 0;
+    }
+    if (typeof filters.diabetes === "boolean") {
+      where.diabetes_mellitus_yesno = filters.diabetes ? 1 : 0;
+    }
+    if (typeof filters.hypertension === "boolean") {
+      where.hypertension_yesno = filters.hypertension ? 1 : 0;
+    }
+    if (typeof filters.ckd === "boolean") {
+      // ckd yes: eGFR < 60, no: eGFR >= 60
+      where.estimated_glomerular_filtration_rate_egfr = filters.ckd ? { $lt: 60 } : { $gte: 60 };
     }
 
-    // Activity multiselect
-    if (Array.isArray(activity) && activity.length > 0) {
-      where.physical_activity_level = { $in: activity };
+    // activity (array of strings)
+    if (Array.isArray(filters.activity) && filters.activity.length > 0) {
+      where.physical_activity_level = { $in: filters.activity.map(s => s.toLowerCase()) };
     }
 
     // total count
     const total = await Patient.countDocuments(where);
 
-    // tiny summary
-    const sampleForSummary = await Patient
-      .find(where, {
-        estimated_glomerular_filtration_rate_egfr: 1,
-        body_mass_index_bmi: 1,
-        smoking_status: 1,
-        diabetes_mellitus_yesno: 1,
-        hypertension_yesno: 1,
-      })
-      .limit(1000); // cap for perf
+    // KPIs (quick & simple)
+    const docsForKpi = await Patient.find(where, {
+      estimated_glomerular_filtration_rate_egfr: 1,
+      body_mass_index_bmi: 1,
+      smoking_status: 1,
+      diabetes_mellitus_yesno: 1,
+      hypertension_yesno: 1
+    }).limit(2000).lean();
 
-    const avg = (arr) => (arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null);
+    const egfrVals = docsForKpi.map(d => Number(d.estimated_glomerular_filtration_rate_egfr)).filter(n => !Number.isNaN(n));
+    const bmiVals  = docsForKpi.map(d => Number(d.body_mass_index_bmi)).filter(n => !Number.isNaN(n));
+    const avg = (arr) => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
     const median = (arr) => {
       if (!arr.length) return null;
       const s = [...arr].sort((a,b)=>a-b);
-      const mid = Math.floor(s.length/2);
-      return s.length%2 ? s[mid] : (s[mid-1]+s[mid])/2;
+      const m = Math.floor(s.length/2);
+      return s.length % 2 ? s[m] : (s[m-1]+s[m])/2;
     };
-
-    const egfrs = sampleForSummary
-      .map(d => d.estimated_glomerular_filtration_rate_egfr)
-      .filter(n => typeof n === "number");
-    const bmis  = sampleForSummary
-      .map(d => d.body_mass_index_bmi)
-      .filter(n => typeof n === "number");
-    const smokers = sampleForSummary.filter(d => d.smoking_status === 1).length;
-    const diabet  = sampleForSummary.filter(d => d.diabetes_mellitus_yesno === 1).length;
-    const hyper   = sampleForSummary.filter(d => d.hypertension_yesno === 1).length;
-    const denom   = sampleForSummary.length || 1;
+    const pct = (count, total) => total ? Math.round((count/total)*100) : null;
 
     const summary = {
-      avgEgfr: egfrs.length ? Number(avg(egfrs).toFixed(1)) : null,
-      medBmi:  bmis.length  ? Number(median(bmis).toFixed(1)) : null,
-      pctSmokers: Math.round((smokers/denom)*100),
-      pctDiabetes: Math.round((diabet/denom)*100),
-      pctHyperten: Math.round((hyper/denom)*100),
+      avgEgfr: egfrVals.length ? Number(avg(egfrVals).toFixed(1)) : null,
+      medBmi:  bmiVals.length  ? Number(median(bmiVals).toFixed(1)) : null,
+      pctSmokers: pct(docsForKpi.filter(d => d.smoking_status === 1).length, docsForKpi.length),
+      pctDiabetes: pct(docsForKpi.filter(d => d.diabetes_mellitus_yesno === 1).length, docsForKpi.length),
+      pctHyperten: pct(docsForKpi.filter(d => d.hypertension_yesno === 1).length, docsForKpi.length),
     };
 
-    // examples for cards
-    const rows = await Patient.find(where)
-      .limit(Math.max(1, Math.min(30, Number(sampleLimit) || 9)));
-
-    const stageFromEgfr = (egfr) => {
-      if (egfr == null) return "Unknown";
-      if (egfr >= 90) return "Stage 1";
-      if (egfr >= 60) return "Stage 2";
-      if (egfr >= 45) return "Stage 3";
-      if (egfr >= 30) return "Stage 4";
-      return "Stage 5";
-    };
-
-    const examples = rows.map((d, i) => ({
-      _id: d._id,
-      name: `Patient ${i+1}`,
-      age: d.age_of_the_patient ?? null,
-      stage: stageFromEgfr(d.estimated_glomerular_filtration_rate_egfr),
-      diagnosis: (d.estimated_glomerular_filtration_rate_egfr ?? 100) < CKD_THRESHOLD
-        ? "CKD"
-        : "No CKD",
-      story: "Explore lifestyle and lab patterns similar to yours.",
-      lifestyle: {
-        diabetic: d.diabetes_mellitus_yesno === 1,
-        smokes:   d.smoking_status === 1,
-        highBP:   d.hypertension_yesno === 1,
-      },
-      riskFactors: [
-        d.diabetes_mellitus_yesno === 1 ? "Diabetes" : null,
-        d.hypertension_yesno === 1 ? "High Blood Pressure" : null,
-        d.smoking_status === 1 ? "Smoking" : null
-      ].filter(Boolean),
-      improvements: ["Medication adherence","Regular monitoring"],
-      vitals: {
-        bmi: d.body_mass_index_bmi ?? null,
-        egfr: d.estimated_glomerular_filtration_rate_egfr ?? null,
-        hemoglobin: d.hemoglobin_level_gms ?? null
-      },
-      labFlags: [],             // fill if you want flags
-      matchScore: undefined,    // not used in cohort search
-    }));
+    // sample examples for cards
+    const sampleSize = Math.max(0, Math.min(30, Number(sampleLimit) || 9));
+    const examplesRaw = sampleSize
+      ? await Patient.aggregate([{ $match: where }, { $sample: { size: sampleSize } }])
+      : [];
+    const examples = examplesRaw.map((d, i) => {
+      const egfr = Number(d.estimated_glomerular_filtration_rate_egfr);
+      const stage =
+        Number.isFinite(egfr)
+          ? egfr >= 90 ? "Stage 1" :
+            egfr >= 60 ? "Stage 2" :
+            egfr >= 45 ? "Stage 3" :
+            egfr >= 30 ? "Stage 4" : "Stage 5"
+          : "Unknown";
+      return {
+        _id: d._id?.toString?.() || d._id,
+        name: `Patient ${i + 1}`,
+        age: Number(d.age_of_the_patient) || null,
+        gender: d.gender || undefined,
+        stage,
+        lifestyle: {
+          diabetic: d.diabetes_mellitus_yesno === 1,
+          smokes: d.smoking_status === 1,
+          highBP: d.hypertension_yesno === 1,
+        },
+        vitals: {
+          bmi: Number(d.body_mass_index_bmi) || null,
+          egfr: Number.isFinite(egfr) ? egfr : null,
+          hemoglobin: Number(d.hemoglobin_level_gms) || null,
+        },
+      };
+    });
 
     res.json({ total, summary, examples });
   } catch (err) {
     console.error("cohortSearch error:", err);
     res.status(500).json({ error: "cohort search failed" });
   }
-};
+}
+
+module.exports = { cohortSearch };

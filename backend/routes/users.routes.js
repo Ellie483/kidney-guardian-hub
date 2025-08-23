@@ -1,11 +1,11 @@
-const express = require("express");
-const router = express.Router();
-const usersController = require("../controllers/users.controller");
+// backend/routes/users.routes.js
+const router = require("express").Router();
+const ctrl = require("../controllers/users.controller");
 
-// POST /api/users
-router.post("/", usersController.createUser);
-
-// GET /api/users
-router.get("/", usersController.getUsers);
+// signup, login, me, list
+router.post("/", ctrl.createUser);
+router.post("/login", ctrl.login);
+router.get("/me", ctrl.me);
+router.get("/", ctrl.getUsers);
 
 module.exports = router;

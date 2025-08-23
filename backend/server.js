@@ -1,35 +1,51 @@
 // backend/server.js
 const express = require("express");
-const mongoose = require("mongoose");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const mongoose = require("mongoose");
 
-// import your  routes
 const patientRoutes = require("./routes/patient.routes");
-const usersRoutes = require("./routes/users.routes");
-const searchRoutes  = require("./routes/search.routes"); 
+const searchRoutes  = require("./routes/search.routes");
+const userRoutes    = require("./routes/users.routes");
 
 const app = express();
-const PORT = 5000; // you can change this if needed
 
-/* ---------- middleware ---------- */
-app.use(cors());
+// --- core middleware
 app.use(express.json());
+app.use(cookieParser());
 
-/* ---------- health check ---------- */
+// CORS for Vite @ 8080 → Node @ 5000
+app.use(cors({
+  origin: "http://localhost:8080",
+  credentials: true,
+}));
+app.use((req, res, next) => {
+  console.log(`\n${req.method} ${req.url}`);
+  if (req.body && Object.keys(req.body).length) {
+    console.log("Body:", req.body);
+  }
+  res.on("finish", () => {
+    console.log("→", res.statusCode, req.method, req.url);
+  });
+  next();
+});
+
+// --- ROUTES *NO /api PREFIX*
+app.use("/patients", patientRoutes); // GET /patients, POST /patients/similar
+app.use("/search",  searchRoutes);   // POST /search/cohort
+app.use("/users",   userRoutes);     // POST /users, POST /users/login, GET /users/me, GET /users
+
+// health
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-/* ---------- routes ---------- */
-app.use("/patients", patientRoutes);
-app.use("/search",  searchRoutes);
-app.use("/api/users", usersRoutes);
-/* ---------- db connect ---------- */
-const mongoUri =
-  "mongodb+srv://mptmayphyothu78:CZEoFA6D2BFrRE54@cluster0.wqyif61.mongodb.net/Kidney?retryWrites=true&w=majority&appName=Cluster0";
-// const mongoUri =
-//   "mongodb+srv://hannithaw4723:iZxgDpAb0JBz368N@cluster0.wqyif61.mongodb.net/Kidney?retryWrites=true&w=majority&appName=Cluster0";
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`✅ Server on http://localhost:${PORT}`));
 
+
+// DB
+const mongoUri = "mongodb+srv://hannithaw4723:iZxgDpAb0JBz368N@cluster0.wqyif61.mongodb.net/Kidney?retryWrites=true&w=majority&appName=Cluster0";
 mongoose
-  .connect(mongoUri, {dbName: "Kidney"}) 
+  .connect(mongoUri)
   .then(() => {
     console.log("✅ MongoDB connected");
     app.listen(PORT, () =>

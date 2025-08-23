@@ -1,12 +1,9 @@
 // backend/routes/patient.routes.js
 const express = require("express");
 const router = express.Router();
-const patientCtrl = require("../controllers/patient.controller");
+const ctrl = require("../controllers/patient.controller");
 
-// list (for sanity checks)
-router.get("/", patientCtrl.getPatients);
-
-// similarity (actual feature)
-router.post("/similar", patientCtrl.findSimilar);
+router.get("/", ctrl.listPatients);            // GET /patients?limit=6
+router.post("/similar", ctrl.getSimilarPatients); // POST /patients/similar
 
 module.exports = router;

@@ -111,17 +111,20 @@ export default function Dashboard({ user }: DashboardProps) {
       {/* Hero Section */}
       <div className="relative">
         <div
-          className="h-64 bg-cover bg-center rounded-b-3xl mx-4 mt-4 relative overflow-hidden"
+          className="h-80 bg-cover bg-center rounded-3xl mx-4 mt-4 relative overflow-hidden shadow-glow animate-float"
           style={{ backgroundImage: `url(${heroImage})` }}
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-secondary/60" />
+          <div className="absolute inset-0 bg-gradient-hero backdrop-blur-sm" />
           <div className="relative h-full flex items-center justify-center text-center text-white p-6">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold mb-2">
+            <div className="animate-fade-in">
+              <div className="mb-4 inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full backdrop-blur-sm animate-glow-pulse">
+                <Heart className="h-8 w-8 text-white" />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold mb-3 bg-gradient-to-r from-white to-green-100 bg-clip-text text-transparent">
                 Welcome back, {user.name.split(" ")[0]}!
               </h1>
-              <p className="text-lg opacity-90">
-                Your personalized kidney health dashboard
+              <p className="text-xl opacity-90 font-light">
+                Your personalized kidney health journey continues
               </p>
             </div>
           </div>
@@ -131,25 +134,29 @@ export default function Dashboard({ user }: DashboardProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Health Score Card */}
-          <Card className="lg:col-span-1 shadow-card border-0 animate-fade-in">
-            <CardHeader className="text-center">
-              <CardTitle className="flex items-center justify-center space-x-2">
-                <Heart className="h-5 w-5 text-red-500" />
-                <span>Health Score</span>
+          <Card className="lg:col-span-1 shadow-glow border-0 animate-fade-in bg-gradient-card hover:shadow-warm transition-all duration-300">
+            <CardHeader className="text-center pb-2">
+              <CardTitle className="flex items-center justify-center space-x-2 text-lg">
+                <div className="p-2 bg-gradient-primary rounded-full shadow-glow">
+                  <Heart className="h-5 w-5 text-white" />
+                </div>
+                <span className="bg-gradient-primary bg-clip-text text-transparent font-bold">Health Score</span>
               </CardTitle>
-              <CardDescription>Based on your lifestyle assessment</CardDescription>
+              <CardDescription className="text-muted-foreground">Based on your lifestyle assessment</CardDescription>
             </CardHeader>
             <CardContent className="text-center">
-              <div className="relative">
-                <div className="text-4xl font-bold text-primary mb-2">{healthScore}</div>
-                <Progress value={healthScore} className="h-3 mb-4" />
-                <div className="flex items-center justify-center space-x-2">
+              <div className="relative p-6">
+                <div className="text-5xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-4 animate-glow-pulse">{healthScore}</div>
+                <Progress value={healthScore} className="h-4 mb-6 shadow-medical" />
+                <div className="flex items-center justify-center">
                   {healthScore >= 80 ? (
-                    <Badge variant="default" className="bg-secondary text-secondary-foreground">Excellent</Badge>
+                    <Badge variant="default" className="bg-gradient-secondary text-white px-4 py-2 shadow-hover animate-shimmer">
+                      ✨ Excellent
+                    </Badge>
                   ) : healthScore >= 60 ? (
-                    <Badge variant="secondary">Good</Badge>
+                    <Badge variant="secondary" className="px-4 py-2 shadow-hover">💚 Good</Badge>
                   ) : (
-                    <Badge variant="destructive">Needs Attention</Badge>
+                    <Badge variant="destructive" className="px-4 py-2 shadow-hover">⚠️ Needs Attention</Badge>
                   )}
                 </div>
               </div>
@@ -157,35 +164,48 @@ export default function Dashboard({ user }: DashboardProps) {
           </Card>
 
           {/* Quick Actions */}
-          <Card className="lg:col-span-2 shadow-card border-0 animate-fade-in">
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>Start your kidney health journey</CardDescription>
+          <Card className="lg:col-span-2 shadow-glow border-0 animate-fade-in bg-gradient-card hover:shadow-warm transition-all duration-300">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center space-x-2 text-xl">
+                <div className="p-2 bg-gradient-secondary rounded-full shadow-glow">
+                  <Activity className="h-5 w-5 text-white" />
+                </div>
+                <span className="bg-gradient-secondary bg-clip-text text-transparent font-bold">Quick Actions</span>
+              </CardTitle>
+              <CardDescription>Start your kidney health journey today</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Link to="/patients">
-                  <Button variant="outline" className="h-20 flex flex-col space-y-2 w-full hover:shadow-hover transition-shadow">
-                    <Users className="h-6 w-6" />
-                    <span className="text-xs">Meet Patients</span>
+                  <Button variant="outline" className="h-24 flex flex-col space-y-3 w-full hover:shadow-glow hover:bg-gradient-primary hover:text-white transition-all duration-300 group border-2 hover:border-primary/50">
+                    <div className="p-2 bg-gradient-primary rounded-full group-hover:bg-white/20">
+                      <Users className="h-6 w-6 text-white" />
+                    </div>
+                    <span className="text-sm font-medium">Meet Patients</span>
                   </Button>
                 </Link>
                 <Link to="/awareness">
-                  <Button variant="outline" className="h-20 flex flex-col space-y-2 w-full hover:shadow-hover transition-shadow">
-                    <BookOpen className="h-6 w-6" />
-                    <span className="text-xs">Learn Facts</span>
+                  <Button variant="outline" className="h-24 flex flex-col space-y-3 w-full hover:shadow-glow hover:bg-gradient-secondary hover:text-white transition-all duration-300 group border-2 hover:border-secondary/50">
+                    <div className="p-2 bg-gradient-secondary rounded-full group-hover:bg-white/20">
+                      <BookOpen className="h-6 w-6 text-white" />
+                    </div>
+                    <span className="text-sm font-medium">Learn Facts</span>
                   </Button>
                 </Link>
                 <Link to="/games">
-                  <Button variant="outline" className="h-20 flex flex-col space-y-2 w-full hover:shadow-hover transition-shadow">
-                    <Gamepad2 className="h-6 w-6" />
-                    <span className="text-xs">Play Games</span>
+                  <Button variant="outline" className="h-24 flex flex-col space-y-3 w-full hover:shadow-glow hover:bg-gradient-warm hover:text-white transition-all duration-300 group border-2 hover:border-warning/50">
+                    <div className="p-2 bg-gradient-warm rounded-full group-hover:bg-white/20">
+                      <Gamepad2 className="h-6 w-6 text-white" />
+                    </div>
+                    <span className="text-sm font-medium">Play Games</span>
                   </Button>
                 </Link>
                 <Link to="/analysis">
-                  <Button variant="outline" className="h-20 flex flex-col space-y-2 w-full hover:shadow-hover transition-shadow">
-                    <FlaskConical className="h-6 w-6" />
-                    <span className="text-xs">Lab Analysis</span>
+                  <Button variant="outline" className="h-24 flex flex-col space-y-3 w-full hover:shadow-glow hover:bg-gradient-primary hover:text-white transition-all duration-300 group border-2 hover:border-accent/50">
+                    <div className="p-2 bg-gradient-primary rounded-full group-hover:bg-white/20">
+                      <FlaskConical className="h-6 w-6 text-white" />
+                    </div>
+                    <span className="text-sm font-medium">Lab Analysis</span>
                   </Button>
                 </Link>
               </div>
@@ -193,24 +213,26 @@ export default function Dashboard({ user }: DashboardProps) {
           </Card>
 
           {/* Personalized Tips */}
-          <Card className="lg:col-span-2 shadow-card border-0 animate-slide-up">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Droplets className="h-5 w-5 text-blue-500" />
-                <span>Your Personalized Tips</span>
+          <Card className="lg:col-span-2 shadow-glow border-0 animate-slide-up bg-gradient-card hover:shadow-warm transition-all duration-300">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center space-x-2 text-xl">
+                <div className="p-2 bg-gradient-primary rounded-full shadow-glow">
+                  <Droplets className="h-5 w-5 text-white" />
+                </div>
+                <span className="bg-gradient-primary bg-clip-text text-transparent font-bold">Your Personalized Tips</span>
               </CardTitle>
-              <CardDescription>Recommendations based on your lifestyle</CardDescription>
+              <CardDescription>Recommendations tailored just for you</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {personalizedTips.map((tip, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 bg-muted/50 rounded-lg">
+                  <div key={index} className="flex items-start space-x-4 p-4 bg-gradient-to-r from-muted/30 to-primary/5 rounded-xl border border-primary/10 hover:shadow-hover transition-all duration-300 group">
                     <div className="flex-shrink-0">
-                      <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center">
-                        <span className="text-xs font-bold text-primary">{index + 1}</span>
+                      <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center shadow-glow group-hover:animate-glow-pulse">
+                        <span className="text-sm font-bold text-white">{index + 1}</span>
                       </div>
                     </div>
-                    <p className="text-sm text-foreground">{tip}</p>
+                    <p className="text-sm text-foreground leading-relaxed">{tip}</p>
                   </div>
                 ))}
               </div>

@@ -55,56 +55,71 @@ export default function Login({ onLogin }: LoginProps) {
     <div className="min-h-screen bg-gradient-dashboard flex items-center justify-center p-4">
       <div className="w-full max-w-md animate-fade-in">
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4"><Heart className="h-12 w-12 text-primary" /></div>
-          <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">KidneyGuard</h1>
-          <p className="text-muted-foreground mt-2">Your partner in kidney health</p>
+          <div className="flex justify-center mb-4">
+            <div className="p-4 bg-gradient-primary rounded-full shadow-glow animate-glow-pulse">
+              <Heart className="h-12 w-12 text-white" />
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">KidneyGuard</h1>
+          <p className="text-muted-foreground mt-2 text-lg">Your partner in kidney health</p>
         </div>
 
-        <Card className="shadow-card border-0">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
-            <CardDescription className="text-center">Sign in to your dashboard</CardDescription>
+        <Card className="shadow-glow border-0 bg-gradient-card hover:shadow-warm transition-all duration-300">
+          <CardHeader className="space-y-4 text-center">
+            <CardTitle className="text-3xl bg-gradient-secondary bg-clip-text text-transparent font-bold">Welcome back</CardTitle>
+            <CardDescription className="text-lg">Continue your kidney health journey</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Mail className="absolute left-3 top-3 h-5 w-5 text-primary/60" />
                   <Input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(e)=> setEmail(e.target.value)}
                     placeholder="Enter your email"
-                    className="pl-10"
+                    className="pl-12 h-12 bg-background/50 border-primary/20 focus:border-primary focus:ring-primary/20 transition-all duration-300"
                     required
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-3 h-5 w-5 text-primary/60" />
                   <Input
                     id="password"
                     type="password"
                     value={password}
                     onChange={(e)=> setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="pl-10"
+                    className="pl-12 h-12 bg-background/50 border-primary/20 focus:border-primary focus:ring-primary/20 transition-all duration-300"
                     required
                   />
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col space-y-4">
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign In"}
+            <CardFooter className="flex flex-col space-y-6">
+              <Button 
+                type="submit" 
+                className="w-full h-12 bg-gradient-primary hover:shadow-glow text-white font-medium transition-all duration-300 hover:scale-105" 
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Signing in...</span>
+                  </div>
+                ) : (
+                  'Sign In'
+                )}
               </Button>
-              <p className="text-center text-sm text-muted-foreground">
+              <p className="text-center text-muted-foreground">
                 Don't have an account?{" "}
-                <Link to="/signup" className="text-primary hover:underline font-medium">Sign up here</Link>
+                <Link to="/signup" className="text-primary hover:text-secondary font-medium transition-colors duration-300 hover:underline">Sign up here</Link>
               </p>
             </CardFooter>
           </form>

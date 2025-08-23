@@ -98,196 +98,285 @@ export default function Signup({ onSignup }: SignupProps) {
 
   return (
     <div className="min-h-screen bg-gradient-dashboard flex items-center justify-center p-4">
-      <div className="w-full max-w-lg animate-fade-in">
+      <div className="w-full max-w-2xl animate-fade-in">
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4"><Heart className="h-12 w-12 text-primary" /></div>
-          <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">KidneyGuard</h1>
-          <p className="text-muted-foreground mt-2">Join us in protecting your kidney health</p>
+          <div className="flex justify-center mb-4">
+            <div className="p-4 bg-gradient-secondary rounded-full shadow-glow animate-glow-pulse">
+              <Heart className="h-12 w-12 text-white" />
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold bg-gradient-secondary bg-clip-text text-transparent">KidneyGuard</h1>
+          <p className="text-muted-foreground mt-2 text-lg">Join us in protecting your kidney health</p>
         </div>
 
-        <Card className="shadow-card border-0">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">
-              {step === 1 ? "Create Account" : "Lifestyle & Health Info"}
+        <Card className="shadow-glow border-0 bg-gradient-card hover:shadow-warm transition-all duration-300">
+          <CardHeader className="space-y-4">
+            <CardTitle className="text-3xl text-center bg-gradient-primary bg-clip-text text-transparent font-bold">
+              {step === 1 ? "Create Account" : "Health Assessment"}
             </CardTitle>
-            <CardDescription className="text-center">
+            <CardDescription className="text-center text-lg">
               {step === 1
                 ? "Enter your basic information to get started"
                 : "Provide your health details for personalized recommendations"}
             </CardDescription>
-            <div className="flex justify-center space-x-2 mt-4">
-              <div className={`w-3 h-3 rounded-full ${step >= 1 ? 'bg-primary' : 'bg-muted'}`} />
-              <div className={`w-3 h-3 rounded-full ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
+            <div className="flex justify-center space-x-3 mt-6">
+              <div className={`w-4 h-4 rounded-full transition-all duration-300 ${step >= 1 ? 'bg-gradient-primary shadow-glow' : 'bg-muted'}`} />
+              <div className={`w-4 h-4 rounded-full transition-all duration-300 ${step >= 2 ? 'bg-gradient-secondary shadow-glow' : 'bg-muted'}`} />
             </div>
           </CardHeader>
 
           {step === 1 ? (
             <form onSubmit={handleBasicInfo}>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="name" className="text-sm font-medium">Full Name</Label>
                   <div className="relative">
-                    <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <User className="absolute left-3 top-3 h-5 w-5 text-primary/60" />
                     <Input
                       id="name"
                       placeholder="Enter your full name"
                       value={formData.name}
                       onChange={(e) => setFormData((p: any) => ({ ...p, name: e.target.value }))}
-                      className="pl-10"
+                      className="pl-12 h-12 bg-background/50 border-primary/20 focus:border-primary focus:ring-primary/20 transition-all duration-300"
                       required
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Mail className="absolute left-3 top-3 h-5 w-5 text-primary/60" />
                     <Input
                       id="email"
                       type="email"
                       placeholder="Enter your email"
                       value={formData.email}
                       onChange={(e) => setFormData((p: any) => ({ ...p, email: e.target.value }))}
-                      className="pl-10"
+                      className="pl-12 h-12 bg-background/50 border-primary/20 focus:border-primary focus:ring-primary/20 transition-all duration-300"
                       required
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Create a password"
-                      value={formData.password}
-                      onChange={(e) => setFormData((p: any) => ({ ...p, password: e.target.value }))}
-                      className="pl-10"
-                      required
-                    />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-5 w-5 text-primary/60" />
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="Create a password"
+                        value={formData.password}
+                        onChange={(e) => setFormData((p: any) => ({ ...p, password: e.target.value }))}
+                        className="pl-12 h-12 bg-background/50 border-primary/20 focus:border-primary focus:ring-primary/20 transition-all duration-300"
+                        required
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      placeholder="Confirm your password"
-                      value={formData.confirmPassword}
-                      onChange={(e) => setFormData((p: any) => ({ ...p, confirmPassword: e.target.value }))}
-                      className="pl-10"
-                      required
-                    />
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-5 w-5 text-primary/60" />
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        placeholder="Confirm your password"
+                        value={formData.confirmPassword}
+                        onChange={(e) => setFormData((p: any) => ({ ...p, confirmPassword: e.target.value }))}
+                        className="pl-12 h-12 bg-background/50 border-primary/20 focus:border-primary focus:ring-primary/20 transition-all duration-300"
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
               </CardContent>
 
-              <div className="px-6 pb-6">
-                <Button type="submit" className="w-full">Continue to Lifestyle Assessment</Button>
-                <p className="text-center text-sm text-muted-foreground mt-4">
+              <div className="px-6 pb-6 space-y-6">
+                <Button 
+                  type="submit" 
+                  className="w-full h-12 bg-gradient-primary hover:shadow-glow text-white font-medium transition-all duration-300 hover:scale-105"
+                >
+                  Continue to Health Assessment →
+                </Button>
+                <p className="text-center text-muted-foreground">
                   Already have an account?{" "}
-                  <Link to="/login" className="text-primary hover:underline font-medium">Sign in here</Link>
+                  <Link to="/login" className="text-primary hover:text-secondary font-medium transition-colors duration-300 hover:underline">Sign in here</Link>
                 </p>
               </div>
             </form>
           ) : (
             <form onSubmit={handleComplete}>
-              <CardContent className="space-y-4">
-                <Input type="number" placeholder="Age" min={0}
-                  value={formData.age} onChange={(e) => setFormData((p:any)=>({ ...p, age: e.target.value }))} required />
-
-                <select className="w-full border rounded p-2" value={formData.gender}
-                  onChange={(e) => setFormData((p:any)=>({ ...p, gender: e.target.value }))} required>
-                  <option value="">Select Gender</option>
-                  <option>Male</option>
-                  <option>Female</option>
-                  <option>Other</option>
-                </select>
-
-                <div className="flex gap-2">
-                  <Input type="number" placeholder="Feet" min={0}
-                    value={formData.heightFeet}
-                    onChange={(e) => setFormData((p:any)=>({ ...p, heightFeet: e.target.value }))} required />
-                  <Input type="number" placeholder="Inches" min={0} max={11}
-                    value={formData.heightInches}
-                    onChange={(e) => setFormData((p:any)=>({ ...p, heightInches: e.target.value }))} required />
-                </div>
-
-                <Input type="number" placeholder="Weight (lb)"
-                  value={formData.weight}
-                  onChange={(e) => setFormData((p:any)=>({ ...p, weight: e.target.value }))} required />
-
-                <div>
-                  <label className="block font-medium mb-1">Have you been diagnosed with:</label>
-                  <div className="space-y-1">
-                    {["Chronic Kidney Disease", "Hypertension", "Diabetes"].map((c) => (
-                      <label key={c} className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.medicalConditions.includes(c)}
-                          onChange={(e) => handleMedicalConditionChange(c, e.target.checked)}
-                        />
-                        <span>{c}</span>
-                      </label>
-                    ))}
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.medicalConditions.length === 0}
-                        onChange={(e) => e.target.checked && setFormData((p:any)=>({ ...p, medicalConditions: [] }))}
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-lg text-primary">Personal Details</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input 
+                        type="number" 
+                        placeholder="Age" 
+                        min={0}
+                        value={formData.age} 
+                        onChange={(e) => setFormData((p:any)=>({ ...p, age: e.target.value }))} 
+                        className="h-12 bg-background/50 border-primary/20 focus:border-primary transition-all duration-300"
+                        required 
                       />
-                      <span>None</span>
-                    </label>
+                      <select 
+                        className="h-12 w-full bg-background/50 border border-primary/20 rounded-md px-3 focus:border-primary transition-all duration-300" 
+                        value={formData.gender}
+                        onChange={(e) => setFormData((p:any)=>({ ...p, gender: e.target.value }))} 
+                        required
+                      >
+                        <option value="">Select Gender</option>
+                        <option>Male</option>
+                        <option>Female</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Input 
+                        type="number" 
+                        placeholder="Height (ft)" 
+                        min={0}
+                        value={formData.heightFeet}
+                        onChange={(e) => setFormData((p:any)=>({ ...p, heightFeet: e.target.value }))} 
+                        className="h-12 bg-background/50 border-primary/20 focus:border-primary transition-all duration-300"
+                        required 
+                      />
+                      <Input 
+                        type="number" 
+                        placeholder="Inches" 
+                        min={0} 
+                        max={11}
+                        value={formData.heightInches}
+                        onChange={(e) => setFormData((p:any)=>({ ...p, heightInches: e.target.value }))} 
+                        className="h-12 bg-background/50 border-primary/20 focus:border-primary transition-all duration-300"
+                        required 
+                      />
+                    </div>
+
+                    <Input 
+                      type="number" 
+                      placeholder="Weight (lbs)"
+                      value={formData.weight}
+                      onChange={(e) => setFormData((p:any)=>({ ...p, weight: e.target.value }))} 
+                      className="h-12 bg-background/50 border-primary/20 focus:border-primary transition-all duration-300"
+                      required 
+                    />
+
+                    <select 
+                      className="h-12 w-full bg-background/50 border border-primary/20 rounded-md px-3 focus:border-primary transition-all duration-300" 
+                      value={formData.bloodType}
+                      onChange={(e) => setFormData((p:any)=>({ ...p, bloodType: e.target.value }))} 
+                      required
+                    >
+                      <option value="">Blood Type</option>
+                      {["A","B","AB","O"].map((t)=> <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-lg text-secondary">Health Information</h3>
+                    
+                    <div className="space-y-3">
+                      <label className="block font-medium text-sm">Have you been diagnosed with:</label>
+                      <div className="space-y-2 p-4 bg-gradient-to-r from-muted/30 to-primary/5 rounded-lg border border-primary/10">
+                        {["Chronic Kidney Disease", "Hypertension", "Diabetes"].map((c) => (
+                          <label key={c} className="flex items-center gap-3 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={formData.medicalConditions.includes(c)}
+                              onChange={(e) => handleMedicalConditionChange(c, e.target.checked)}
+                              className="w-4 h-4 text-primary border-primary/30 rounded focus:ring-primary/20"
+                            />
+                            <span>{c}</span>
+                          </label>
+                        ))}
+                        <label className="flex items-center gap-3 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={formData.medicalConditions.length === 0}
+                            onChange={(e) => e.target.checked && setFormData((p:any)=>({ ...p, medicalConditions: [] }))}
+                            className="w-4 h-4 text-primary border-primary/30 rounded focus:ring-primary/20"
+                          />
+                          <span>None</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="block font-medium text-sm">Family history of kidney disease?</label>
+                      <div className="flex gap-6">
+                        {["Yes","No"].map((opt)=>(
+                          <label key={opt} className="flex items-center gap-2">
+                            <input 
+                              type="radio" 
+                              name="familyHistory" 
+                              value={opt}
+                              checked={formData.familyHistory===opt}
+                              onChange={(e)=> setFormData((p:any)=>({ ...p, familyHistory: e.target.value }))} 
+                              className="w-4 h-4 text-primary border-primary/30 focus:ring-primary/20"
+                            /> 
+                            <span className="text-sm">{opt}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="block font-medium text-sm">Smoking or alcohol consumption?</label>
+                      <div className="flex gap-6">
+                        {["Yes","No"].map((opt)=>(
+                          <label key={opt} className="flex items-center gap-2">
+                            <input 
+                              type="radio" 
+                              name="smokeAlcohol" 
+                              value={opt}
+                              checked={formData.smokeAlcohol===opt}
+                              onChange={(e)=> setFormData((p:any)=>({ ...p, smokeAlcohol: e.target.value }))} 
+                              className="w-4 h-4 text-primary border-primary/30 focus:ring-primary/20"
+                            /> 
+                            <span className="text-sm">{opt}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <textarea 
+                      className="w-full h-24 bg-background/50 border border-primary/20 rounded-md p-3 focus:border-primary transition-all duration-300 resize-none" 
+                      placeholder="List medications (if any)"
+                      value={formData.medications}
+                      onChange={(e) => setFormData((p:any)=>({ ...p, medications: e.target.value }))} 
+                    />
                   </div>
                 </div>
-
-                <select className="w-full border rounded p-2" value={formData.bloodType}
-                  onChange={(e) => setFormData((p:any)=>({ ...p, bloodType: e.target.value }))} required>
-                  <option value="">Blood Type</option>
-                  {["A","B","AB","O"].map((t)=> <option key={t}>{t}</option>)}
-                </select>
-
-                <div>
-                  <label className="block font-medium mb-1">Family history of kidney disease?</label>
-                  <div className="flex gap-4">
-                    {["Yes","No"].map((opt)=>(
-                      <label key={opt}>
-                        <input type="radio" name="familyHistory" value={opt}
-                          checked={formData.familyHistory===opt}
-                          onChange={(e)=> setFormData((p:any)=>({ ...p, familyHistory: e.target.value }))} /> {opt}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-medium mb-1">Smoking or alcohol consumption?</label>
-                  <div className="flex gap-4">
-                    {["Yes","No"].map((opt)=>(
-                      <label key={opt}>
-                        <input type="radio" name="smokeAlcohol" value={opt}
-                          checked={formData.smokeAlcohol===opt}
-                          onChange={(e)=> setFormData((p:any)=>({ ...p, smokeAlcohol: e.target.value }))} /> {opt}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <textarea className="w-full border rounded p-2" placeholder="List medications (if any)"
-                  value={formData.medications}
-                  onChange={(e) => setFormData((p:any)=>({ ...p, medications: e.target.value }))} />
               </CardContent>
 
-              <div className="px-6 pb-6 flex gap-3">
-                <Button type="button" variant="outline" onClick={() => setStep(1)} className="flex-1">Back</Button>
-                <Button type="submit" disabled={isLoading} className="flex-1">
-                  {isLoading ? "Creating Account..." : "Complete Registration"}
+              <div className="px-6 pb-6 flex gap-4">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setStep(1)} 
+                  className="flex-1 h-12 border-primary/30 hover:bg-primary/5 transition-all duration-300"
+                >
+                  ← Back
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={isLoading} 
+                  className="flex-1 h-12 bg-gradient-secondary hover:shadow-glow text-white font-medium transition-all duration-300 hover:scale-105"
+                >
+                  {isLoading ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Creating Account...</span>
+                    </div>
+                  ) : (
+                    'Complete Registration'
+                  )}
                 </Button>
               </div>
             </form>

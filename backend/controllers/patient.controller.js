@@ -146,7 +146,73 @@ function makeSignature(payload) {
     .digest("hex")}`;
 }
 
+// Keep only the 31 UI fields the modal needs (names match your frontend)
+// Keep only the 31 UI fields the modal needs (names match your frontend)
+function pack31(p) {
+  // IMPORTANT: prefer the original mongo doc if present
+  const src = p?.__raw ? p.__raw : p;
+
+  return {
+    age_of_the_patient: src.age_of_the_patient ?? src.age ?? p.age ?? null,
+    smoking_status: src.smoking_status ?? p?.lifestyle?.smokes ?? null,
+    diabetes_mellitus_yesno: src.diabetes_mellitus_yesno ?? p?.lifestyle?.diabetic ?? null,
+    hypertension_yesno: src.hypertension_yesno ?? p?.lifestyle?.highBP ?? null,
+    physical_activity_level: src.physical_activity_level ?? p?.lifestyle?.activityLevel ?? null,
+    family_history_of_chronic_kidney_disease: src.family_history_of_chronic_kidney_disease,
+    body_mass_index_bmi: src.body_mass_index_bmi ?? p?.vitals?.bmi ?? null,
+    duration_of_diabetes_mellitus_years: src.duration_of_diabetes_mellitus_years,
+    duration_of_hypertension_years: src.duration_of_hypertension_years,
+    coronary_artery_disease_yesno: src.coronary_artery_disease_yesno,
+    serum_creatinine_mgdl: src.serum_creatinine_mgdl,
+    estimated_glomerular_filtration_rate_egfr:
+      src.estimated_glomerular_filtration_rate_egfr ?? p?.vitals?.egfr ?? null,
+    blood_urea_mgdl: src.blood_urea_mgdl,
+    hemoglobin_level_gms: src.hemoglobin_level_gms ?? p?.vitals?.hemoglobin ?? null,
+    sodium_level_meql: src.sodium_level_meql,
+    potassium_level_meql: src.potassium_level_meql,
+    serum_albumin_level: src.serum_albumin_level,
+    cholesterol_level: src.cholesterol_level,
+    random_blood_glucose_level_mgdl: src.random_blood_glucose_level_mgdl,
+    cystatin_c_level: src.cystatin_c_level,
+    albumin_in_urine: src.albumin_in_urine,
+    urine_proteintocreatinine_ratio: src.urine_proteintocreatinine_ratio,
+    specific_gravity_of_urine: src.specific_gravity_of_urine,
+    red_blood_cells_in_urine: src.red_blood_cells_in_urine,
+    pus_cells_in_urine: src.pus_cells_in_urine,
+    bacteria_in_urine: src.bacteria_in_urine,
+    blood_pressure_mmhg: src.blood_pressure_mmhg,
+    appetite_goodpoor: src.appetite_goodpoor,
+    pedal_edema_yesno: src.pedal_edema_yesno,
+    anemia_yesno: src.anemia_yesno,
+    target: src.target ?? p.diagnosis,
+  };
+}
+
+
 // ----------------------- controllers -----------------------
+// GET /patients/:id
+exports.getPatientById = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const doc = await Patient.findById(id).lean();
+    if (!doc) return res.status(404).json({ error: "Not found" });
+    res.json({ patient: doc });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to get patient" });
+  }
+};
+
+// POST /patients/details  { ids: [...] }  (optional batch)
+exports.getPatientsDetails = async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    if (!ids.length) return res.json({ results: [] });
+    const docs = await Patient.find({ _id: { $in: ids } }).lean();
+    res.json({ results: docs });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to get details" });
+  }
+};
 
 // GET /patients  (debug: list a few raw docs)
 exports.listPatients = async (req, res) => {
@@ -254,10 +320,12 @@ exports.getSimilarPatients = async (req, res) => {
       lifestyle: p.lifestyle,
       riskFactors: p.riskFactors,
       improvements: p.improvements,
-      vitals: p.vitals,          // { bmi, egfr, hemoglobin }
+      vitals: p.vitals,
       labFlags: p.labFlags,
       matchScore: score,
+      raw: pack31(p),          
     }));
+    
 
     // quick debug — you should see real numbers now
     console.log("Similar top3 preview:",

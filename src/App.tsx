@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Navbar } from "@/components/ui/navbar";
-
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -20,7 +19,7 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 // Match your backend schema
-export interface AppUser  {
+export interface AppUser {
   _id?: string;
   name: string;
   email: string;
@@ -32,8 +31,8 @@ export interface AppUser  {
   weight?: number;
   medicalConditions?: string[];
   bloodType?: string;
-  familyHistory?: string;
-  medications?: string;
+  familyHistory?: "Yes" | "No";
+  physicalActivity?: "Low" | "Moderate" | "High";  // ← strict type
   smoke?: "Yes" | "No";
   registeredAt?: string;
 }
@@ -76,7 +75,7 @@ const App = () => {
     localStorage.removeItem("kidneyguard_user");
     localStorage.removeItem("userId");
     // optional: call backend to clear cookie
-    fetch(`${API}/users/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+    fetch(`${API}/users/logout`, { method: "POST", credentials: "include" }).catch(() => { });
   };
 
   if (isLoading) {
@@ -131,8 +130,11 @@ const App = () => {
               />
               <Route
                 path="/profile"
-                element={user ? <Profile /> : <Navigate to="/login" replace />}
+                element={
+                  user ? <Profile user={user} onUpdateUser={setUser} /> : <Navigate to="/login" replace />
+                }
               />
+
               {/* Admin route with role-based protection */}
               <Route
                 path="/admin-dashboard"

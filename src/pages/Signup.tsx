@@ -6,12 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Heart, User, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
-import type { AppUser  } from "@/App";
+import type { AppUser } from "@/App";
 
 const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
 interface SignupProps {
-  onSignup: (u: AppUser ) => void;
+  onSignup: (u: AppUser) => void;
 }
 
 export default function Signup({ onSignup }: SignupProps) {
@@ -78,7 +78,7 @@ export default function Signup({ onSignup }: SignupProps) {
       }
 
       const data = await res.json(); // { message, id, user }
-      const created: AppUser  = data.user || {};
+      const created: AppUser = data.user || {};
       if (data.id) created._id = data.id;
 
       // persist
@@ -200,10 +200,13 @@ export default function Signup({ onSignup }: SignupProps) {
             <form onSubmit={handleComplete}>
               <CardContent className="space-y-4">
                 <Input type="number" placeholder="Age" min={0}
-                  value={formData.age} onChange={(e) => setFormData((p:any)=>({ ...p, age: e.target.value }))} required />
+                  value={formData.age}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, age: e.target.value }))}
+                  required
+                />
 
                 <select className="w-full border rounded p-2" value={formData.gender}
-                  onChange={(e) => setFormData((p:any)=>({ ...p, gender: e.target.value }))} required>
+                  onChange={(e) => setFormData((p: any) => ({ ...p, gender: e.target.value }))} required>
                   <option value="">Select Gender</option>
                   <option>Male</option>
                   <option>Female</option>
@@ -213,20 +216,27 @@ export default function Signup({ onSignup }: SignupProps) {
                 <div className="flex gap-2">
                   <Input type="number" placeholder="Feet" min={0}
                     value={formData.heightFeet}
-                    onChange={(e) => setFormData((p:any)=>({ ...p, heightFeet: e.target.value }))} required />
+                    onChange={(e) => setFormData((p: any) => ({ ...p, heightFeet: e.target.value }))} required />
                   <Input type="number" placeholder="Inches" min={0} max={11}
                     value={formData.heightInches}
-                    onChange={(e) => setFormData((p:any)=>({ ...p, heightInches: e.target.value }))} required />
+                    onChange={(e) => setFormData((p: any) => ({ ...p, heightInches: e.target.value }))} required />
                 </div>
 
-                <Input type="number" placeholder="Weight (lb)"
+                {/* Weight Validation */}
+                <Input type="number" placeholder="Weight (lb)" min={0} max={700}
                   value={formData.weight}
-                  onChange={(e) => setFormData((p:any)=>({ ...p, weight: e.target.value }))} required />
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (val <= 700) setFormData((p: any) => ({ ...p, weight: e.target.value }));
+                  }}
+                  required
+                />
 
+                {/* Medical Conditions - without CKD */}
                 <div>
                   <label className="block font-medium mb-1">Have you been diagnosed with:</label>
                   <div className="space-y-1">
-                    {["Chronic Kidney Disease", "Hypertension", "Diabetes"].map((c) => (
+                    {["Hypertension", "Diabetes"].map((c) => (
                       <label key={c} className="flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -240,57 +250,85 @@ export default function Signup({ onSignup }: SignupProps) {
                       <input
                         type="checkbox"
                         checked={formData.medicalConditions.length === 0}
-                        onChange={(e) => e.target.checked && setFormData((p:any)=>({ ...p, medicalConditions: [] }))}
+                        onChange={(e) => e.target.checked && setFormData((p: any) => ({ ...p, medicalConditions: [] }))}
                       />
                       <span>None</span>
                     </label>
                   </div>
                 </div>
 
+                {/* Blood Type */}
                 <select className="w-full border rounded p-2" value={formData.bloodType}
-                  onChange={(e) => setFormData((p:any)=>({ ...p, bloodType: e.target.value }))} required>
+                  onChange={(e) => setFormData((p: any) => ({ ...p, bloodType: e.target.value }))} required>
                   <option value="">Blood Type</option>
-                  {["A","B","AB","O"].map((t)=> <option key={t}>{t}</option>)}
+                  {["A", "B", "AB", "O"].map((t) => <option key={t}>{t}</option>)}
                 </select>
 
+                {/* Family History */}
                 <div>
                   <label className="block font-medium mb-1">Family history of kidney disease?</label>
                   <div className="flex gap-4">
-                    {["Yes","No"].map((opt)=>(
+                    {["Yes", "No"].map((opt) => (
                       <label key={opt}>
                         <input type="radio" name="familyHistory" value={opt}
-                          checked={formData.familyHistory===opt}
-                          onChange={(e)=> setFormData((p:any)=>({ ...p, familyHistory: e.target.value }))} /> {opt}
+                          checked={formData.familyHistory === opt}
+                          onChange={(e) => setFormData((p: any) => ({ ...p, familyHistory: e.target.value }))} /> {opt}
                       </label>
                     ))}
                   </div>
                 </div>
 
+                {/* Smoking Only */}
                 <div>
-                  <label className="block font-medium mb-1">Smoking or alcohol consumption?</label>
+                  <label className="block font-medium mb-1">Do you smoke?</label>
                   <div className="flex gap-4">
-                    {["Yes","No"].map((opt)=>(
+                    {["Yes", "No"].map((opt) => (
                       <label key={opt}>
                         <input type="radio" name="smokeAlcohol" value={opt}
-                          checked={formData.smokeAlcohol===opt}
-                          onChange={(e)=> setFormData((p:any)=>({ ...p, smokeAlcohol: e.target.value }))} /> {opt}
+                          checked={formData.smokeAlcohol === opt}
+                          onChange={(e) => setFormData((p: any) => ({ ...p, smokeAlcohol: e.target.value }))} /> {opt}
                       </label>
                     ))}
                   </div>
                 </div>
 
-                <textarea className="w-full border rounded p-2" placeholder="List medications (if any)"
-                  value={formData.medications}
-                  onChange={(e) => setFormData((p:any)=>({ ...p, medications: e.target.value }))} />
+                {/* Physical Activity Level */}
+                <div>
+                  <label className="block font-medium mb-1">Physical activity level</label>
+                  <div className="flex gap-4">
+                    {["Low", "Moderate", "High"].map((level) => (
+                      <label key={level}>
+                        <input type="radio" name="physicalActivity" value={level}
+                          checked={formData.physicalActivity === level}
+                          onChange={(e) => setFormData((p: any) => ({ ...p, physicalActivity: e.target.value }))} /> {level}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
               </CardContent>
 
               <div className="px-6 pb-6 flex gap-3">
-                <Button type="button" variant="outline" onClick={() => setStep(1)} className="flex-1">Back</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.preventDefault();   // stop form submit
+                    e.stopPropagation();  // stop bubbling
+                    setStep(1);           // go back to step 1
+                  }}
+                  className="flex-1"
+                >
+                  Back
+                </Button>
+
+
                 <Button type="submit" disabled={isLoading} className="flex-1">
                   {isLoading ? "Creating Account..." : "Complete Registration"}
                 </Button>
               </div>
             </form>
+
           )}
         </Card>
       </div>

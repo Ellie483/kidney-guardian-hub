@@ -324,10 +324,6 @@ const Profile = () => {
                     <p className="p-2 bg-muted/50 rounded-md">{user.bloodType || 'Not specified'}</p>
                   )}
                 </div>
-
-                
-
-
               </div>
 
               <div className="space-y-2">

@@ -15,7 +15,7 @@ export const Navbar = ({ isAuthenticated = false, onLogout }: NavbarProps) => {
 
   const navItems = [
     { to: "/", label: "Home" },
-    { to: "/patients", label: "Meet the Patients" },
+    { to: "/patients", label: "Health Profiles" },
     { to: "/awareness", label: "Did You Know?" },
     { to: "/games", label: "Play & Learn" },
     { to: "/analysis", label: "Lab Analysis" },
@@ -23,7 +23,6 @@ export const Navbar = ({ isAuthenticated = false, onLogout }: NavbarProps) => {
 
   const userNavItems = [
     { to: "/profile", label: "Profile" },
-    { to: "/admin", label: "Admin Dashboard" }, // This should be conditionally shown based on user role
   ];
 
   const isActive = (path: string) => location.pathname === path;

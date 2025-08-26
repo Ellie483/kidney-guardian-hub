@@ -15,13 +15,8 @@ const userSchema = new mongoose.Schema(
     medicalConditions: [{ type: String }], // only Hypertension, Diabetes, etc.
     bloodType: { type: String },
     familyHistory: { type: String },
-
-    // replaced medications with physical activity
     physicalActivity: { type: String, enum: ["Low", "Moderate", "High"] },
-
-    // replaced smoke with smoke only
     smoke: { type: String, enum: ["Yes", "No"] },
-
     registeredAt: { type: Date, default: Date.now },
   },
   { collection: "users" }

@@ -9,6 +9,27 @@ function safeUser(u) {
   return obj;
 }
 
+// PUT /api/users/:id
+exports.updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    // Remove password if present for security
+    delete updates.password;
+    delete updates.confirmPassword;
+
+    const updatedUser = await User.findByIdAndUpdate(id, updates, { new: true });
+    if (!updatedUser) return res.status(404).json({ error: "User not found" });
+
+    res.json(safeUser(updatedUser));
+  } catch (err) {
+    console.error("updateUser error:", err);
+    res.status(500).json({ error: "Failed to update user" });
+  }
+};
+
+
 // POST /api/users   (signup)
 exports.createUser = async (req, res) => {
   try {

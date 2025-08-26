@@ -1,21 +1,21 @@
-// backend/models/users.model.js
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, minlength: 2, maxlength: 100},
-    email: { type: String, required: true, unique: true, match: /.+\@.+\..+/},
+    name: { type: String, required: true, minlength: 2, maxlength: 100 },
+    email: { type: String, required: true, unique: true, match: /.+\@.+\..+/ },
     password: { type: String, required: true },
-    confirmPassword: { type: String, required: true },
-    age: { type: Number, min: 0, max: 120  },
+
+    age: { type: Number, min: 0, max: 120 },
     gender: { type: String, enum: ["Male", "Female", "Other"] },
     heightFeet: { type: Number, min: 1, max: 8 },
     heightInches: { type: Number, min: 0, max: 11 },
     weight: { type: Number, min: 30, max: 700 }, // pounds
-    medicalConditions: [{ type: String }],
+
+    medicalConditions: [{ type: String }], // only Hypertension, Diabetes, etc.
     bloodType: { type: String },
     familyHistory: { type: String },
-    medications: { type: String },
+    physicalActivity: { type: String, enum: ["Low", "Moderate", "High"] },
     smoke: { type: String, enum: ["Yes", "No"] },
     registeredAt: { type: Date, default: Date.now },
   },
@@ -40,12 +40,11 @@ userSchema.methods.normalizedProfile = function () {
     age: typeof this.age === "number" ? this.age : undefined,
     gender: typeof this.gender === "string" ? this.gender.toLowerCase() : undefined,
     bmi,
-    egfr: undefined, // you can store later if you add it to User
+    egfr: undefined, // future use
     diabetic: has("diabetes"),
     hypertension: has("hypertension"),
-    ckd: has("chronic kidney disease"),
-    smokes: String(this.smoke || "").toLowerCase() === "yes" ? true : false,
-    activity: undefined, // add if you collect it later
+    smokes: String(this.smoke || "").toLowerCase() === "yes",
+    activity: this.physicalActivity || undefined,
   };
 };
 

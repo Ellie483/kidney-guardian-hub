@@ -15,6 +15,7 @@ interface UserProfile {
   _id: string;
   name: string;
   email: string;
+  password?: string;
   age?: number;
   gender?: string;
   heightFeet?: number;
@@ -23,10 +24,11 @@ interface UserProfile {
   bloodType?: string;
   medicalConditions?: string[];
   familyHistory?: string;
-  medications?: string;
+  physicalActivity?: string;
   smoke?: string;
   registeredAt: string;
 }
+
 
 const Profile = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -44,7 +46,7 @@ const Profile = () => {
       const response = await fetch('/users/me', {
         credentials: 'include'
       });
-      
+
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
@@ -182,7 +184,7 @@ const Profile = () => {
                 <Calendar className="h-4 w-4 mr-2" />
                 Joined {new Date(user.registeredAt).toLocaleDateString()}
               </div>
-              
+
               {user.age && (
                 <div className="flex items-center text-sm text-muted-foreground">
                   <User className="h-4 w-4 mr-2" />
@@ -312,90 +314,121 @@ const Profile = () => {
                         <SelectValue placeholder="Select blood type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="A+">A+</SelectItem>
-                        <SelectItem value="A-">A-</SelectItem>
-                        <SelectItem value="B+">B+</SelectItem>
-                        <SelectItem value="B-">B-</SelectItem>
-                        <SelectItem value="AB+">AB+</SelectItem>
-                        <SelectItem value="AB-">AB-</SelectItem>
-                        <SelectItem value="O+">O+</SelectItem>
-                        <SelectItem value="O-">O-</SelectItem>
+                        <SelectItem value="A">A</SelectItem>
+                        <SelectItem value="B">B</SelectItem>
+                        <SelectItem value="AB">AB</SelectItem>
+                        <SelectItem value="O">O</SelectItem>
                       </SelectContent>
                     </Select>
                   ) : (
                     <p className="p-2 bg-muted/50 rounded-md">{user.bloodType || 'Not specified'}</p>
                   )}
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="smoke">Smoke/Alcohol</Label>
+              <div className="space-y-2">
+                  <Label>Smoke</Label>
                   {editing ? (
-                    <Select value={formData?.smoke || ''} onValueChange={(value) => updateFormData('smoke', value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select option" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Yes">Yes</SelectItem>
-                        <SelectItem value="No">No</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-4">
+                      {['Yes', 'No'].map((option) => (
+                        <label key={option} className="flex items-center gap-1">
+                          <input
+                            type="radio"
+                            name="smoke"
+                            value={option}
+                            checked={formData?.smoke === option}
+                            onChange={(e) => updateFormData('smoke', e.target.value)}
+                          />
+                          {option}
+                        </label>
+                      ))}
+                    </div>
                   ) : (
                     <p className="p-2 bg-muted/50 rounded-md">{user.smoke || 'Not specified'}</p>
                   )}
                 </div>
-              </div>
 
-              <Separator />
+      
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="familyHistory">Family History</Label>
+                  <Label>Family History</Label>
                   {editing ? (
-                    <Textarea
-                      id="familyHistory"
-                      rows={3}
-                      value={formData?.familyHistory || ''}
-                      onChange={(e) => updateFormData('familyHistory', e.target.value)}
-                      placeholder="Describe any relevant family medical history..."
-                    />
+                    <div className="flex gap-4">
+                      {['Yes', 'No'].map((option) => (
+                        <label key={option} className="flex items-center gap-1">
+                          <input
+                            type="radio"
+                            name="familyHistory"
+                            value={option}
+                            checked={formData?.familyHistory === option}
+                            onChange={(e) => updateFormData('familyHistory', e.target.value)}
+                          />
+                          {option}
+                        </label>
+                      ))}
+                    </div>
                   ) : (
-                    <p className="p-3 bg-muted/50 rounded-md min-h-[80px]">
-                      {user.familyHistory || 'No family history recorded'}
-                    </p>
+                    <p className="p-2 bg-muted/50 rounded-md">{user.familyHistory || 'Not specified'}</p>
                   )}
                 </div>
 
+
                 <div className="space-y-2">
-                  <Label htmlFor="medications">Current Medications</Label>
+                  <Label htmlFor="physicalActivity">Physical Activity</Label>
                   {editing ? (
-                    <Textarea
-                      id="medications"
-                      rows={3}
-                      value={formData?.medications || ''}
-                      onChange={(e) => updateFormData('medications', e.target.value)}
-                      placeholder="List any current medications..."
-                    />
+                    <Select
+                      value={formData?.physicalActivity || ''}
+                      onValueChange={(value) => updateFormData('physicalActivity', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select activity level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="None">None</SelectItem>
+                        <SelectItem value="Light">Light</SelectItem>
+                        <SelectItem value="Moderate">Moderate</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                      </SelectContent>
+                    </Select>
                   ) : (
-                    <p className="p-3 bg-muted/50 rounded-md min-h-[80px]">
-                      {user.medications || 'No medications recorded'}
-                    </p>
+                    <p className="p-2 bg-muted/50 rounded-md">{user.physicalActivity || 'Not specified'}</p>
                   )}
                 </div>
+
 
                 <div className="space-y-2">
                   <Label>Medical Conditions</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {user.medicalConditions && user.medicalConditions.length > 0 ? (
-                      user.medicalConditions.map((condition, index) => (
-                        <Badge key={index} variant="secondary">
-                          {condition}
-                        </Badge>
-                      ))
-                    ) : (
-                      <p className="text-muted-foreground text-sm">No medical conditions recorded</p>
-                    )}
-                  </div>
+                  {editing ? (
+                    <div className="flex gap-2">
+                      {['Hypertension', 'Diabetes'].map((cond) => (
+                        <label key={cond} className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={formData?.medicalConditions?.includes(cond) || false}
+                            onChange={(e) => {
+                              let updated = formData?.medicalConditions || [];
+                              if (e.target.checked) updated.push(cond);
+                              else updated = updated.filter(c => c !== cond);
+                              updateFormData('medicalConditions', updated);
+                            }}
+                          />
+                          {cond}
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      {user.medicalConditions?.length
+                        ? user.medicalConditions.map((cond, idx) => (
+                          <Badge key={idx} variant="secondary">{cond}</Badge>
+                        ))
+                        : <p className="text-muted-foreground text-sm">No medical conditions</p>
+                      }
+                    </div>
+                  )}
                 </div>
+
               </div>
             </CardContent>
           </Card>

@@ -248,8 +248,7 @@ exports.getSimilarPatients = async (req, res) => {
       lifestyle: {
         diabetic: (user.medicalConditions || []).includes("Diabetes"),
         highBP: (user.medicalConditions || []).includes("Hypertension"),
-        smokes: user.smoke === "Yes",
-        activityLevel: user.activityLevel || null,
+        smokes: user.smokeAlcohol === "Yes",
       },
       vitals: {
         egfr: toNum(user?.vitals?.egfr) ?? null,

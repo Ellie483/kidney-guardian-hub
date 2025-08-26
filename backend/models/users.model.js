@@ -3,15 +3,15 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    name: { type: String, required: true, minlength: 2, maxlength: 100},
+    email: { type: String, required: true, unique: true, match: /.+\@.+\..+/},
     password: { type: String, required: true },
     confirmPassword: { type: String, required: true },
-    age: { type: Number },
+    age: { type: Number, min: 0, max: 120  },
     gender: { type: String, enum: ["Male", "Female", "Other"] },
-    heightFeet: { type: Number },
-    heightInches: { type: Number },
-    weight: { type: Number }, // pounds
+    heightFeet: { type: Number, min: 1, max: 8 },
+    heightInches: { type: Number, min: 0, max: 11 },
+    weight: { type: Number, min: 30, max: 700 }, // pounds
     medicalConditions: [{ type: String }],
     bloodType: { type: String },
     familyHistory: { type: String },

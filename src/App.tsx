@@ -131,7 +131,7 @@ const App = () => {
               />
               <Route
                 path="/admin"
-                element={user ? <AdminDashboard /> : <Navigate to="/login" replace />}
+                element={<AdminDashboard />}
               />
               <Route path="*" element={<NotFound />} />
             </Routes>

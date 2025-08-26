@@ -29,7 +29,7 @@ export default function Signup({ onSignup }: SignupProps) {
     medicalConditions: [] as string[],
     bloodType: "",
     familyHistory: "",
-    medications: "",
+    physicalActivity: "",
     smoke: "",
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -68,7 +68,7 @@ export default function Signup({ onSignup }: SignupProps) {
       const res = await fetch(`${API}/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // receive cookie if server sets one
+        credentials: "include",
         body: JSON.stringify(payload),
       });
 
@@ -77,11 +77,10 @@ export default function Signup({ onSignup }: SignupProps) {
         throw new Error(err?.error || `Signup failed (HTTP ${res.status})`);
       }
 
-      const data = await res.json(); // { message, id, user }
+      const data = await res.json();
       const created: AppUser = data.user || {};
       if (data.id) created._id = data.id;
 
-      // persist
       localStorage.setItem("kidneyguard_user", JSON.stringify(created));
       if (created._id) localStorage.setItem("userId", created._id);
 
@@ -199,22 +198,24 @@ export default function Signup({ onSignup }: SignupProps) {
           ) : (
             <form onSubmit={handleComplete}>
               <CardContent className="space-y-4">
-                 <div className="flex gap-4">
-                <Input type="number" placeholder="Age" min={0}
-                  value={formData.age}
-                  onChange={(e) => setFormData((p: any) => ({ ...p, age: e.target.value }))}
-                  required
-                />
+                {/* Age + Gender */}
+                <div className="flex gap-4">
+                  <Input type="number" placeholder="Age" min={0}
+                    value={formData.age}
+                    onChange={(e) => setFormData((p: any) => ({ ...p, age: e.target.value }))}
+                    required
+                  />
 
-                <select className="w-full border rounded p-2" value={formData.gender}
-                  onChange={(e) => setFormData((p: any) => ({ ...p, gender: e.target.value }))} required>
-                  <option value="">Select Gender</option>
-                  <option>Male</option>
-                  <option>Female</option>
-                  <option>Other</option>
-                </select>
+                  <select className="w-full border rounded p-2" value={formData.gender}
+                    onChange={(e) => setFormData((p: any) => ({ ...p, gender: e.target.value }))} required>
+                    <option value="">Select Gender</option>
+                    <option>Male</option>
+                    <option>Female</option>
+                    <option>Other</option>
+                  </select>
                 </div>
 
+                {/* Height */}
                 <div className="flex gap-2">
                   <Input type="number" placeholder="Feet" min={0}
                     value={formData.heightFeet}
@@ -224,7 +225,7 @@ export default function Signup({ onSignup }: SignupProps) {
                     onChange={(e) => setFormData((p: any) => ({ ...p, heightInches: e.target.value }))} required />
                 </div>
 
-                {/* Weight Validation */}
+                {/* Weight */}
                 <Input type="number" placeholder="Weight (lb)" min={0} max={700}
                   value={formData.weight}
                   onChange={(e) => {
@@ -234,7 +235,7 @@ export default function Signup({ onSignup }: SignupProps) {
                   required
                 />
 
-                {/* Medical Conditions - without CKD */}
+                {/* Medical Conditions */}
                 <div>
                   <label className="block font-medium mb-1">Have you been diagnosed with:</label>
                   <div className="space-y-1">
@@ -280,15 +281,36 @@ export default function Signup({ onSignup }: SignupProps) {
                   </div>
                 </div>
 
-                {/* Smoking Only */}
+                {/* Physical Activity */}
+                <div>
+                  <label className="block font-medium mb-1">How active are you physically?</label>
+                  <div className="flex gap-4">
+                    {["Low", "Moderate", "High"].map((opt) => (
+                      <label key={opt}>
+                        <input
+                          type="radio"
+                          name="physicalActivity"
+                          value={opt}
+                          checked={formData.physicalActivity === opt}
+                          onChange={(e) =>
+                            setFormData((p: any) => ({ ...p, physicalActivity: e.target.value }))
+                          }
+                        />{" "}
+                        {opt}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Smoking */}
                 <div>
                   <label className="block font-medium mb-1">Do you smoke?</label>
                   <div className="flex gap-4">
                     {["Yes", "No"].map((opt) => (
                       <label key={opt}>
-                        <input type="radio" name="smokeAlcohol" value={opt}
-                          checked={formData.smokeAlcohol===opt}
-                          onChange={(e)=> setFormData((p:any)=>({ ...p, smokeAlcohol: e.target.value }))} /> {opt}
+                        <input type="radio" name="smoke" value={opt}
+                          checked={formData.smoke === opt}
+                          onChange={(e) => setFormData((p: any) => ({ ...p, smoke: e.target.value }))} /> {opt}
                       </label>
                     ))}
                   </div>
@@ -301,22 +323,20 @@ export default function Signup({ onSignup }: SignupProps) {
                   type="button"
                   variant="outline"
                   onClick={(e) => {
-                    e.preventDefault();   // stop form submit
-                    e.stopPropagation();  // stop bubbling
-                    setStep(1);           // go back to step 1
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setStep(1);
                   }}
                   className="flex-1"
                 >
                   Back
                 </Button>
 
-
                 <Button type="submit" disabled={isLoading} className="flex-1">
                   {isLoading ? "Creating Account..." : "Complete Registration"}
                 </Button>
               </div>
             </form>
-
           )}
         </Card>
       </div>

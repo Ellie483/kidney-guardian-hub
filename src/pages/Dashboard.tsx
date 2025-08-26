@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -11,7 +12,6 @@ import { Progress } from "@/components/ui/progress";
 import {
   Heart,
   Droplets,
-  Activity,
   AlertTriangle,
   Users,
   BookOpen,
@@ -35,11 +35,12 @@ interface DashboardProps {
     medications?: string;
     familyHistory?: string;
     smoke?: string;
+    physicalActivity?: "Low" | "Medium" | "High";
     registeredAt?: string;
   };
 }
 
-// Mock patient data for similarity matching
+// Mock patient data
 const mockPatients = [
   {
     id: 1,
@@ -71,40 +72,60 @@ const mockPatients = [
 ];
 
 export default function Dashboard({ user }: DashboardProps) {
-  // Risk factors: count medical conditions + smoking/alcohol
-  const riskFactors =
-    (user.medicalConditions?.length || 0) +
-    (user.smoke === "Yes" ? 1 : 0);
+  const [healthScore, setHealthScore] = useState(0);
 
-  const healthScore = Math.max(20, 100 - riskFactors * 15);
+  // Recalculate health score whenever user changes
+  useEffect(() => {
+    const conditionWeights: Record<string, number> = {
+      Diabetes: 2,
+      Hypertension: 1,
+      CKD: 3,
+      "Family history": 1
+    };
 
-  // Personalized tips based on Step 2 data
+    const medicalRisk = (user.medicalConditions || []).reduce(
+      (sum, cond) => sum + (conditionWeights[cond] || 1),
+      0
+    );
+    const smokeRisk = user.smoke === "Yes" ? 2 : 0;
+    const familyHistoryRisk = user.familyHistory === "Yes" ? 1 : 0;
+
+    const activityBonus =
+      user.physicalActivity === "High" ? 4 :
+      user.physicalActivity === "Medium" ? 2 : 0;
+
+    const score = Math.max(
+      0,
+      Math.min(100, 100 - (medicalRisk + smokeRisk + familyHistoryRisk) * 15 + activityBonus)
+    );
+    setHealthScore(score);
+  }, [user]);
+
+  // Personalized tips
   const getPersonalizedTips = () => {
     const tips: string[] = [];
-
     if (user.smoke === "Yes") tips.push("Consider reducing smoking/alcohol consumption for kidney health.");
     if (user.medicalConditions?.includes("Diabetes")) tips.push("Monitor your blood sugar levels regularly.");
     if (user.medicalConditions?.includes("Hypertension")) tips.push("Keep your blood pressure under control.");
     if (!user.age) tips.push("Stay physically active to maintain kidney health.");
     if (user.familyHistory === "Yes") tips.push("Regular check-ups are important due to family history.");
+    if (user.physicalActivity !== "High") tips.push("Increase physical activity for better health.");
     tips.push("Drink 8-10 glasses of water daily.");
     tips.push("Limit processed foods and excess sodium.");
-
-    return tips.slice(0, 4); // top 4 tips
+    return tips.slice(0, 4);
   };
+  const personalizedTips = getPersonalizedTips();
 
+  // Similar patients
   const getSimilarPatients = () => {
     return mockPatients
-      .filter(patient => {
-        const userConditions = user.medicalConditions || [];
-        const patientConditions = patient.medicalConditions || [];
-        return userConditions.some(cond => patientConditions.includes(cond));
-      })
+      .filter(patient => (user.medicalConditions || []).some(cond => (patient.medicalConditions || []).includes(cond)))
       .slice(0, 2);
   };
-
-  const personalizedTips = getPersonalizedTips();
   const similarPatients = getSimilarPatients();
+
+  // Risk factors alert
+  const riskFactors = (user.medicalConditions?.length || 0) + (user.smoke === "Yes" ? 1 : 0) + (user.familyHistory === "Yes" ? 1 : 0);
 
   return (
     <div className="min-h-screen bg-gradient-dashboard">

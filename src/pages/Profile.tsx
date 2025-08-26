@@ -389,8 +389,8 @@ const Profile = () => {
                         <SelectValue placeholder="Select activity level" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="None">None</SelectItem>
-                        <SelectItem value="Light">Light</SelectItem>
+                    
+                        <SelectItem value="Low">Low</SelectItem>
                         <SelectItem value="Moderate">Moderate</SelectItem>
                         <SelectItem value="High">High</SelectItem>
                       </SelectContent>

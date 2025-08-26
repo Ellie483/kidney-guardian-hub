@@ -1,24 +1,10 @@
 // backend/controllers/search.controller.js
 const Patient = require("../models/patient.model");
 
-// Helper: infer CKD stage from eGFR
-function stageFromEgfr(egfr) {
-  if (egfr == null || Number.isNaN(egfr)) return "Unknown";
-  if (egfr >= 90) return "Stage 1";
-  if (egfr >= 60) return "Stage 2";
-  if (egfr >= 45) return "Stage 3a";
-  if (egfr >= 30) return "Stage 3b";
-  if (egfr >= 15) return "Stage 4";
-  return "Stage 5";
-}
 
-/**
- * POST /search/cohort
- * body: { filters: {...}, sampleLimit?: number }
- */
 const cohortSearch = async (req, res) => {
   try {
-    const { filters = {}, sampleLimit = 9 } = req.body || {};
+    const { filters = {}, sampleLimit = 12 } = req.body || {};
     const q = {};
 
     // ---- filters ----
@@ -51,11 +37,9 @@ const cohortSearch = async (req, res) => {
       q.hypertension_yesno = filters.hypertension;
     }
 
-    // CKD flag -> driven by eGFR
-    if (typeof filters.ckd === "boolean") {
-      q.estimated_glomerular_filtration_rate_egfr = filters.ckd
-        ? { $lt: 60 }
-        : { $gte: 60 };
+    // CKD Stage filtering based on the 'target' attribute
+    if (filters.ckd && filters.ckd !== "any") {
+      q.target = filters.ckd; // Filtering based on 'target' attribute (e.g., no_disease, low, moderate, high)
     }
 
     // physical activity (low/moderate/high)
@@ -68,14 +52,14 @@ const cohortSearch = async (req, res) => {
 
     // ---- sample (examples) ----
     const docs = await Patient.find(q)
-      .limit(Number(sampleLimit) || 9)
+      .limit(Number(sampleLimit) || 12)
       .lean();
 
     const examples = docs.map((p, i) => ({
       _id: String(p._id),
       name: p.name || `Patient ${i + 1}`,
       age: p.age ?? p.age_of_the_patient ?? null,
-      stage: p.stage || stageFromEgfr(p.estimated_glomerular_filtration_rate_egfr),
+      stage: p.stage || p.target, // Use 'target' as the stage
       lifestyle: {
         diabetic: !!p.diabetes_mellitus_yesno,
         highBP: !!p.hypertension_yesno,
@@ -143,6 +127,7 @@ const cohortSearch = async (req, res) => {
     return res.status(500).json({ error: "Server error in cohortSearch" });
   }
 };
+
 
 // ⬇️ Export once, after the function (fixes the “Unexpected end of input”)
 module.exports = { cohortSearch };

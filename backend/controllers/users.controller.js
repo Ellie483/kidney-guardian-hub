@@ -70,8 +70,34 @@ exports.createUser = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
+    if (!email || !password)
+      return res.status(400).json({ error: "Email and password are required" });
 
+    // ======= STATIC ADMIN LOGIN CHECK =======
+    if (email === "admin@gmail.com" && password === "admin1234") {
+      // create a fake admin user object
+      const adminUser = {
+        _id: "admin",
+        email: "admin@gmail.com",
+        name: "Administrator",
+        role: "admin",
+      };
+
+      // set cookie for admin session
+      res
+        .cookie("uid", adminUser._id, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: false, // set true if using https
+          maxAge: 30 * 24 * 3600 * 1000,
+        })
+        .json({ ok: true, id: adminUser._id, user: adminUser });
+
+      return; // stop further processing
+    }
+    // ========================================
+
+    // check normal users from DB
     const user = await User.findOne({ email });
     if (!user || user.password !== password) {
       return res.status(401).json({ error: "Invalid credentials" });
@@ -90,6 +116,7 @@ exports.login = async (req, res) => {
     res.status(500).json({ error: "Login failed" });
   }
 };
+
 
 // GET /api/users/me
 exports.me = async (req, res) => {

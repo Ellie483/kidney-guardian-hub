@@ -286,23 +286,9 @@ export default function Signup({ onSignup }: SignupProps) {
                   <div className="flex gap-4">
                     {["Yes", "No"].map((opt) => (
                       <label key={opt}>
-                        <input type="radio" name="smoke" value={opt}
-                          checked={formData.smoke === opt}
-                          onChange={(e) => setFormData((p: any) => ({ ...p, smoke: e.target.value }))} /> {opt}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Physical Activity Level */}
-                <div>
-                  <label className="block font-medium mb-1">Physical activity level</label>
-                  <div className="flex gap-4">
-                    {["Low", "Moderate", "High"].map((level) => (
-                      <label key={level}>
-                        <input type="radio" name="physicalActivity" value={level}
-                          checked={formData.physicalActivity === level}
-                          onChange={(e) => setFormData((p: any) => ({ ...p, physicalActivity: e.target.value }))} /> {level}
+                        <input type="radio" name="smokeAlcohol" value={opt}
+                          checked={formData.smokeAlcohol===opt}
+                          onChange={(e)=> setFormData((p:any)=>({ ...p, smokeAlcohol: e.target.value }))} /> {opt}
                       </label>
                     ))}
                   </div>

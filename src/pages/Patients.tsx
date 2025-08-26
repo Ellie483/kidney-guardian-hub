@@ -15,6 +15,36 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Heart, Filter, Users } from "lucide-react";
 
+const hasRichDetails = (doc: any): boolean => {
+  const d = doc?.patient ?? doc ?? {};
+  return (
+    d.hasOwnProperty("serum_creatinine_mgdl") ||
+    d.hasOwnProperty("estimated_glomerular_filtration_rate_egfr") ||
+    d.hasOwnProperty("blood_urea_mgdl") ||
+    d.hasOwnProperty("hemoglobin_level_gms")
+  );
+};
+
+async function fetchFullPatientById(id: string | number) {
+  const candidates = [
+    `${API_BASE}/patients/${id}`,
+    `${API_BASE}/patients/by-id/${id}`,
+    `${API_BASE}/patients/get?id=${id}`,
+    `${API_BASE}/patient/${id}`,
+    `${API_BASE}/records/${id}`,
+  ];
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const doc = data?.patient ?? data?.record ?? data?.doc ?? data;
+      if (doc && typeof doc === "object") return doc;
+    } catch {}
+  }
+  throw new Error("Could not load full patient by id");
+}
+
 /* ------------ types ------------- */
 type PatientCard = {
   _id?: string;
@@ -25,138 +55,325 @@ type PatientCard = {
   stage?: string;
   diagnosis?: string;
   story?: string;
-  lifestyle?: { diabetic?: boolean; exercise?: boolean; smokes?: boolean; highBP?: boolean };
+  lifestyle?: { 
+    diabetic?: boolean; 
+    exercise?: boolean; 
+    smokes?: boolean; 
+    highBP?: boolean; 
+    activityLevel?: string | null; 
+  };
   riskFactors?: string[];
   improvements?: string[];
   vitals?: { bmi?: number | null; egfr?: number | null; hemoglobin?: number | null };
   labFlags?: string[];
-  matchScore?: number; // 0..100
+  matchScore?: number;
+  raw?: any;  
 };
+
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 const toNum = (v: string) => (v === "" || v == null ? undefined : Number(v));
 
+
+
+
 /* =========================================================
    Helpers
 ========================================================= */
+const yesNo = (v: any): string => {
+  // accept 1/0, true/false, "yes"/"no"
+  if (v === true || v === 1 || v === "1") return "Yes";
+  if (v === false || v === 0 || v === "0") return "No";
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (["yes", "y", "true", "t"].includes(s)) return "Yes";
+    if (["no", "n", "false", "f"].includes(s)) return "No";
+  }
+  // leave strings like "normal", "abnormal" as-is
+  return v == null || v === "" ? "—" : String(v);
+};
+
+const fmt = (v: any) => (v == null || v === "" ? "—" : String(v));
+
 const asNum = (v: any) => (v == null || v === "" ? undefined : Number(v));
 const asBool = (v: any) => {
   if (v === true || v === false) return v;
   if (typeof v === "number") return v !== 0;
   if (typeof v === "string") {
     const s = v.trim().toLowerCase();
-    if (["yes", "y", "true", "t", "1"].includes(s)) return true;
-    if (["no", "n", "false", "f", "0"].includes(s)) return false;
+    if (["yes","y","true","t","1"].includes(s)) return true;
+    if (["no","n","false","f","0"].includes(s)) return false;
   }
   return undefined;
 };
 
-const stageFromEgfr = (egfr?: number | null) => {
-  if (egfr == null || Number.isNaN(egfr)) return "Unknown";
-  if (egfr >= 90) return "Stage 1";
-  if (egfr >= 60) return "Stage 2";
-  if (egfr >= 45) return "Stage 3a";
-  if (egfr >= 30) return "Stage 3b";
-  if (egfr >= 15) return "Stage 4";
-  return "Stage 5";
+
+
+/* ---------- details grid (labels & order for 31 attributes) ---------- */
+const FIELD_ORDER = [
+  "age_of_the_patient",
+  "smoking_status",
+  "diabetes_mellitus_yesno",
+  "hypertension_yesno",
+  "physical_activity_level",
+  "family_history_of_chronic_kidney_disease",
+  "body_mass_index_bmi",
+  "duration_of_diabetes_mellitus_years",
+  "duration_of_hypertension_years",
+  "coronary_artery_disease_yesno",
+  "serum_creatinine_mgdl",
+  "estimated_glomerular_filtration_rate_egfr",
+  "blood_urea_mgdl",
+  "hemoglobin_level_gms",
+  "sodium_level_meql",
+  "potassium_level_meql",
+  "serum_albumin_level",
+  "cholesterol_level",
+  "random_blood_glucose_level_mgdl",
+  "cystatin_c_level",
+  "albumin_in_urine",
+  "urine_proteintocreatinine_ratio",
+  "specific_gravity_of_urine",
+  "red_blood_cells_in_urine",
+  "pus_cells_in_urine",
+  "bacteria_in_urine",
+  "blood_pressure_mmhg",
+  "appetite_goodpoor",
+  "pedal_edema_yesno",
+  "anemia_yesno",
+  "target",
+] as const;
+
+const LABELS: Record<string, string> = {
+  age_of_the_patient: "Age",
+  smoking_status: "Smoking status",
+  diabetes_mellitus_yesno: "Diabetes (Y/N)",
+  hypertension_yesno: "Hypertension (Y/N)",
+  physical_activity_level: "Physical activity",
+  family_history_of_chronic_kidney_disease: "Family history of CKD",
+  body_mass_index_bmi: "BMI",
+  duration_of_diabetes_mellitus_years: "Duration of diabetes (yrs)",
+  duration_of_hypertension_years: "Duration of hypertension (yrs)",
+  coronary_artery_disease_yesno: "Coronary artery disease (Y/N)",
+  serum_creatinine_mgdl: "Serum creatinine (mg/dL)",
+  estimated_glomerular_filtration_rate_egfr: "eGFR",
+  blood_urea_mgdl: "Blood urea (mg/dL)",
+  hemoglobin_level_gms: "Hemoglobin (g/dL)",
+  sodium_level_meql: "Sodium (mEq/L)",
+  potassium_level_meql: "Potassium (mEq/L)",
+  serum_albumin_level: "Serum albumin",
+  cholesterol_level: "Cholesterol",
+  random_blood_glucose_level_mgdl: "Random blood glucose (mg/dL)",
+  cystatin_c_level: "Cystatin C",
+  albumin_in_urine: "Albumin in urine",
+  urine_proteintocreatinine_ratio: "Urine protein/creatinine ratio",
+  specific_gravity_of_urine: "Specific gravity (urine)",
+  red_blood_cells_in_urine: "RBC in urine",
+  pus_cells_in_urine: "Pus cells in urine",
+  bacteria_in_urine: "Bacteria in urine",
+  blood_pressure_mmhg: "Blood pressure (mmHg)",
+  appetite_goodpoor: "Appetite",
+  pedal_edema_yesno: "Pedal edema (Y/N)",
+  anemia_yesno: "Anemia (Y/N)",
+  target: "Target / Diagnosis",
 };
+
+const prettyByKey = (key: string, v: any) => {
+  if (v === null || v === undefined || v === "") return "—";
+  // Normalize 0/1 booleans for *_yesno & smoking_status
+  if (/_yesno$/.test(key) || key === "smoking_status") {
+    if (v === 1 || v === "1" || v === true || `${v}`.toLowerCase() === "yes") return "Yes";
+    if (v === 0 || v === "0" || v === false || `${v}`.toLowerCase() === "no") return "No";
+  }
+  return String(v);
+};
+
+/* ---------- build a 'details' snapshot from whatever shape we get ---------- */
+function buildDetails(doc: any): Record<string, any> {
+  const d = doc?.patient ?? doc ?? {};
+  return {
+    age_of_the_patient: d.age_of_the_patient ?? d.age ?? null,
+    smoking_status:
+      d.smoking_status ??
+      (typeof d?.lifestyle?.smokes === "boolean" ? (d.lifestyle.smokes ? 1 : 0) : undefined),
+    diabetes_mellitus_yesno:
+      d.diabetes_mellitus_yesno ??
+      (typeof d?.lifestyle?.diabetic === "boolean" ? (d.lifestyle.diabetic ? 1 : 0) : undefined),
+    hypertension_yesno:
+      d.hypertension_yesno ??
+      (typeof d?.lifestyle?.highBP === "boolean" ? (d.lifestyle.highBP ? 1 : 0) : undefined),
+    physical_activity_level: d.physical_activity_level ?? d?.lifestyle?.activityLevel ?? null,
+    family_history_of_chronic_kidney_disease: d.family_history_of_chronic_kidney_disease,
+    body_mass_index_bmi: d.body_mass_index_bmi ?? d?.vitals?.bmi ?? null,
+    duration_of_diabetes_mellitus_years: d.duration_of_diabetes_mellitus_years,
+    duration_of_hypertension_years: d.duration_of_hypertension_years,
+    coronary_artery_disease_yesno: d.coronary_artery_disease_yesno,
+    serum_creatinine_mgdl: d.serum_creatinine_mgdl,
+    estimated_glomerular_filtration_rate_egfr:
+      d.estimated_glomerular_filtration_rate_egfr ?? d?.vitals?.egfr ?? null,
+    blood_urea_mgdl: d.blood_urea_mgdl,
+    hemoglobin_level_gms: d.hemoglobin_level_gms ?? d?.vitals?.hemoglobin ?? null,
+    sodium_level_meql: d.sodium_level_meql,
+    potassium_level_meql: d.potassium_level_meql,
+    serum_albumin_level: d.serum_albumin_level,
+    cholesterol_level: d.cholesterol_level,
+    random_blood_glucose_level_mgdl: d.random_blood_glucose_level_mgdl,
+    cystatin_c_level: d.cystatin_c_level,
+    albumin_in_urine: d.albumin_in_urine,
+    urine_proteintocreatinine_ratio: d.urine_proteintocreatinine_ratio,
+    specific_gravity_of_urine: d.specific_gravity_of_urine,
+    red_blood_cells_in_urine: d.red_blood_cells_in_urine,
+    pus_cells_in_urine: d.pus_cells_in_urine,
+    bacteria_in_urine: d.bacteria_in_urine,
+    blood_pressure_mmhg: d.blood_pressure_mmhg,
+    appetite_goodpoor: d.appetite_goodpoor,
+    pedal_edema_yesno: d.pedal_edema_yesno,
+    anemia_yesno: d.anemia_yesno,
+    target: d.target ?? d.diagnosis,
+  };
+}
+
+function prettyTarget(val: any): string | undefined {
+  if (val == null) return undefined;
+
+  // Handle numeric encodings 0..3
+  if (typeof val === "number") {
+    if (val === 0) return "No disease";
+    if (val === 1) return "Low risk";
+    if (val === 2) return "Moderate risk";
+    if (val === 3) return "High risk";
+  }
+
+  const s = String(val).trim().toLowerCase();
+
+  // Common string encodings
+  if (["no disease", "no_disease", "none", "negative", "no ckd", "no"].includes(s))
+    return "No disease";
+  if (s.includes("low")) return "Low risk";
+  if (s.includes("moderate") || s === "med") return "Moderate risk";
+  if (s.includes("high")) return "High risk";
+
+  // If target was something like "0", "1", "2", "3"
+  if (["0","1","2","3"].includes(s)) {
+    const n = Number(s);
+    return prettyTarget(n);
+  }
+
+  // Fallback: don’t force Unknown; just hide the badge if we can't classify
+  return undefined;
+}
+
 
 /** Adapt backend docs (with many possible field names) to our card shape */
+/** Adapt backend docs to our card shape */
 const normalizePatient = (raw: any, idx = 0): PatientCard => {
-  const doc = raw?.patient ?? raw ?? {};
+  // common top-levels we’ve seen from different endpoints
+  const src = raw?.patient ?? raw ?? {};
+
+  // Try several likely places where the full Mongo doc might live
+  const rawDoc =
+    raw?.raw ??                     // /search/cohort often
+    raw?.patient?.raw ??            // some /patients/similar responses
+    raw?.patientRaw ??              // custom backends
+    src?.raw ??                     // if frontend wrapped once already
+    raw?.doc ?? raw?.record ??      // other common keys
+    raw?.patient ??                 // last resort: take patient itself
+    src;                            // or the src itself
+
+  const fullRaw = rawDoc;
+
   const score =
-    asNum(raw?.matchScore) ??
-    asNum(raw?.score) ??
-    asNum(raw?.similarity) ??
-    asNum(raw?._score);
+    asNum(raw?.matchScore) ?? asNum(raw?.score) ?? asNum(raw?.similarity) ?? asNum(raw?._score);
 
-  const age = asNum(doc.age) ?? asNum(doc.age_of_the_patient);
+  const age = asNum(src.age) ?? asNum(src.age_of_the_patient);
+  const bmi = asNum(src?.vitals?.bmi) ?? asNum(src.body_mass_index_bmi);
+  const egfr = asNum(src?.vitals?.egfr) ?? asNum(src.estimated_glomerular_filtration_rate_egfr);
+  const hemoglobin = asNum(src?.vitals?.hemoglobin) ?? asNum(src.hemoglobin_level_gms);
 
-  const bmi =
-    asNum(doc?.vitals?.bmi) ??
-    asNum(doc.body_mass_index_bmi);
+  const diabetic = asBool(src?.lifestyle?.diabetic) ?? asBool(src.diabetes_mellitus_yesno);
+  const highBP   = asBool(src?.lifestyle?.highBP)   ?? asBool(src.hypertension_yesno);
+  const smokes   = asBool(src?.lifestyle?.smokes)   ?? asBool(src.smoking_status);
+  const activityLevel =
+    src?.lifestyle?.activityLevel ??
+    (typeof src.physical_activity_level === "string" ? src.physical_activity_level : null);
 
-  const egfr =
-    asNum(doc?.vitals?.egfr) ??
-    asNum(doc.estimated_glomerular_filtration_rate_egfr);
-
-  const hemoglobin =
-    asNum(doc?.vitals?.hemoglobin) ??
-    asNum(doc.hemoglobin_level_gms);
-
-  const diabetic =
-    asBool(doc?.lifestyle?.diabetic) ??
-    asBool(doc.diabetes_mellitus_yesno);
-
-  const highBP =
-    asBool(doc?.lifestyle?.highBP) ??
-    asBool(doc.hypertension_yesno);
-
-  const smokes =
-    asBool(doc?.lifestyle?.smokes) ??
-    asBool(doc.smoking_status);
-
-  const name = doc.name || doc.fullName || `Patient ${idx + 1}`;
-  const stage = doc.stage || stageFromEgfr(egfr);
-
-  const riskFactors = [
-    diabetic ? "Diabetes" : undefined,
-    highBP ? "High Blood Pressure" : undefined,
-    smokes ? "Smoking" : undefined,
-  ].filter(Boolean) as string[];
+  const name  = src.name || src.fullName || `Patient ${idx + 1}`;
+  const rawStageSource =
+    src.target ??
+    src.prediction ??
+    src.risk ??
+    src.label ??
+    fullRaw?.target ??
+    fullRaw?.prediction ??
+    fullRaw?.risk ??
+    fullRaw?.label;
+    const stage = prettyTarget(rawStageSource);
+  
+  // Prefer explicit diagnosis string if present; otherwise use the pretty stage label.
+  // (Important: this handles numeric 0..3 as well, so “0” won’t disappear.)
+  const diagnosisLabel =
+    (typeof src.diagnosis === "string" && src.diagnosis.trim() !== "")
+      ? src.diagnosis
+      : stage;
+  
+  const riskFactors = [diabetic && "Diabetes", highBP && "High Blood Pressure", smokes && "Smoking"]
+    .filter(Boolean) as string[];
+  
 
   return {
-    id: doc.id ?? doc._id ?? idx,
-    _id: doc._id,
+    id: src.id ?? src._id ?? idx,
+    _id: src._id,
     name,
     age: age ?? null,
-    gender: (doc.gender || doc.sex || "").toString().toLowerCase(),
+    gender: (src.gender || src.sex || "").toString().toLowerCase(),
     stage,
-    diagnosis: doc.diagnosis || doc.target || undefined,
-    story: doc.story || "Explore lifestyle and lab patterns similar to yours.",
-    lifestyle: { diabetic, highBP, smokes, exercise: undefined },
+    diagnosis: diagnosisLabel,        
+    lifestyle: { diabetic, highBP, smokes, exercise: undefined, activityLevel },
     riskFactors,
-    improvements: doc.improvements || [],
+    improvements: src.improvements || [],
     vitals: { bmi: bmi ?? null, egfr: egfr ?? null, hemoglobin: hemoglobin ?? null },
-    labFlags: doc.labFlags || [],
-    matchScore:
-      typeof score === "number"
-        ? Math.max(0, Math.min(100, score))
-        : undefined,
+    labFlags: src.labFlags || [],
+    matchScore: typeof score === "number" ? Math.max(0, Math.min(100, score)) : undefined,
+    raw: fullRaw,                                     // <-- use the full raw doc
   };
 };
+
+
+/* small UI chip */
+const Chip: React.FC<{ label: string }> = ({ label }) => (
+  <span className="inline-flex items-center rounded-full border border-emerald-200/70 px-2.5 py-0.5 text-xs text-emerald-700 bg-emerald-50/70">
+    {label}
+  </span>
+);
 
 /* =========================================================
    Patients Page
 ========================================================= */
 export default function Patients() {
-  /* ---------- Tabs ---------- */
   const [tab, setTab] = useState<"similar" | "explore">("similar");
-
-  /* ---------- Modal ---------- */
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<PatientCard | null>(null);
   const openModal = (p: PatientCard) => { setSelected(p); setOpen(true); };
 
-  /* ---------- Shared card renderer ---------- */
-  const getStageColor = (stage: string) => {
-    switch (stage) {
-      case "Stage 1": return "bg-secondary text-secondary-foreground";
-      case "Stage 2": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
-      case "Stage 3": return "bg-warning/10 text-warning-foreground";
-      case "Stage 4": return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
-      case "Stage 5": return "bg-destructive/10 text-destructive-foreground";
-      default: return "bg-muted text-muted-foreground";
-    }
+  const getStageBadge = (label?: string) => {
+    const s = (label || "").toLowerCase();
+    if (s.includes("no disease")) return "bg-emerald-100 text-emerald-800";
+    if (s.includes("low"))        return "bg-blue-100 text-blue-800";
+    if (s.includes("moderate"))   return "bg-amber-100 text-amber-800";
+    if (s.includes("high"))       return "bg-red-100 text-red-800";
+    return "bg-muted text-muted-foreground";
   };
+  
 
   const renderCards = (arr: PatientCard[]) => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {arr.map((p, index) => {
-        const stage = p.stage || "Unknown";
+        // ✅ define it first
+        const stage = p.stage;                 // this is your risk label (No disease / Low / Moderate / High)
         const vitals = p.vitals || {};
         const previewRisks = (p.riskFactors || []).slice(0, 2);
         const previewFlags = (p.labFlags || []).slice(0, 1);
+        const activity = p.lifestyle?.activityLevel;
         return (
           <Card
             key={p._id || p.id || index}
@@ -169,7 +386,9 @@ export default function Patients() {
                   <CardTitle className="text-lg">{p.name || `Patient ${index + 1}`}</CardTitle>
                   <CardDescription>{p.age ? `${p.age} years old` : "—"}</CardDescription>
                 </div>
-                <Badge className={getStageColor(stage)}>{stage}</Badge>
+                {stage && (
+                  <Badge className={`${getStageBadge(stage)} rounded-full`}>{stage}</Badge>
+                )}
               </div>
               {p.diagnosis && (
                 <div className="flex items-center space-x-2 mt-1">
@@ -197,6 +416,17 @@ export default function Patients() {
                 </div>
               )}
 
+              {activity && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Lifestyle:</h4>
+                <div className="flex flex-wrap gap-1">
+                  <Badge variant="outline" className="text-xs">
+                    Activity: {String(activity).charAt(0).toUpperCase() + String(activity).slice(1)}
+                  </Badge>
+                </div>
+              </div>
+              )}
+
               {previewFlags.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-2">Lab Flag:</h4>
@@ -208,23 +438,9 @@ export default function Patients() {
                 </div>
               )}
 
-              {typeof p.matchScore === "number" && (
-                <div className="pt-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Similarity Match</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-primary rounded-full" style={{ width: `${p.matchScore}%` }} />
-                      </div>
-                      <span className="text-xs font-medium">{p.matchScore}%</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <div className="pt-2">
                 <Button
-                  className="bg-green-500 w-full text-white hover:bg-green-600"
+                  className="bg-emerald-600 w-full text-white hover:bg-emerald-700"
                   variant="outline"
                   onClick={() => openModal(p)}
                 >
@@ -237,31 +453,103 @@ export default function Patients() {
       })}
     </div>
   );
-
+  async function enrichPatients(cards: PatientCard[]): Promise<PatientCard[]> {
+    const results = await Promise.allSettled(
+      cards.map(async (c) => {
+        // If we already have rich fields, keep as-is
+        if (hasRichDetails(c.raw ?? c)) return c;
+  
+        const id = c._id ?? c.id;
+        if (!id) return c;
+  
+        // Pull full record by id
+        const full = await fetchFullPatientById(id);
+  
+        // Recompute stage / diagnosis if backend stores them differently
+        const rawStage = full?.target ?? full?.prediction ?? full?.risk ?? full?.label;
+        const stage = c.stage ?? prettyTarget(rawStage);
+        const diagnosis =
+          c.diagnosis ??
+          (typeof full?.diagnosis === "string" && full.diagnosis.trim() !== ""
+            ? full.diagnosis
+            : stage);
+  
+        return {
+          ...c,
+          stage,
+          diagnosis,
+          raw: full, // <-- now we have all 31 fields available to buildDetails(...)
+          vitals: {
+            bmi: c.vitals?.bmi ?? asNum(full?.body_mass_index_bmi) ?? null,
+            egfr: c.vitals?.egfr ?? asNum(full?.estimated_glomerular_filtration_rate_egfr) ?? null,
+            hemoglobin: c.vitals?.hemoglobin ?? asNum(full?.hemoglobin_level_gms) ?? null,
+          },
+        } as PatientCard;
+      })
+    );
+  
+    // Keep originals on failures, enriched on successes
+    return results.map((r, i) => (r.status === "fulfilled" ? r.value : cards[i]));
+  }
+  
   /* =========================================================
-     TAB 1: Similar (static 12, no refresh)
+     TAB 1: Similar
   ========================================================= */
   const [simLoading, setSimLoading] = useState(false);
   const [simError, setSimError] = useState<string | null>(null);
   const [similar, setSimilar] = useState<PatientCard[]>([]);
-  const [others] = useState<PatientCard[]>([]); // kept for layout parity if you add later
+  const [others] = useState<PatientCard[]>([]);
 
   useEffect(() => {
     let canceled = false;
+  
+    // --- helper: unwrap any plausible list shape ---
+    const unwrapList = (data: any): any[] => {
+      if (Array.isArray(data)) return data;
+  
+      const candidates = [
+        "results", "matches", "patients", "items", "records", "hits", "docs", "data",
+      ];
+  
+      for (const k of candidates) {
+        const v = data?.[k];
+        if (Array.isArray(v)) return v;
+        // nested: { data: { results: [...] } }, { hits: { hits: [...] } }, etc.
+        if (Array.isArray(v?.results)) return v.results;
+        if (Array.isArray(v?.items)) return v.items;
+        if (Array.isArray(v?.hits)) return v.hits;
+      }
+  
+      // Sometimes servers send an object like {0:{...},1:{...}}
+      const objectValues = Object.values(data ?? {});
+      const arrayLike = objectValues.filter(
+        (x) => x && typeof x === "object" && !Array.isArray(x)
+      );
+      if (
+        arrayLike.length > 0 &&
+        arrayLike.every((o: any) => "_id" in o || "id" in o || "name" in o)
+      ) {
+        return arrayLike as any[];
+      }
+  
+      return [];
+    };
+  
     (async () => {
       try {
         setSimError(null);
         setSimLoading(true);
+  
         const userId =
           localStorage.getItem("userId") ||
           JSON.parse(localStorage.getItem("kidney_user") || "{}")?._id ||
           JSON.parse(localStorage.getItem("kidneyguard_user") || "{}")?._id;
-
+  
         if (!userId) {
           setSimError("You're not signed in.");
           return;
         }
-
+  
         const res = await fetch(`${API_BASE}/patients/similar`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -269,37 +557,71 @@ export default function Patients() {
           body: JSON.stringify({ userId, limit: 12 }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  
         const data = await res.json();
-
-        console.log("[SIMILAR] raw response:", data);
-
-        const arr: any[] = Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : [];
-const normalized = arr.map((d, i) => normalizePatient(d, i));
-// log first few normalized items so we can see fields the UI uses
-console.log("[SIMILAR] normalized[0..2]:", normalized.slice(0, 3));
-console.table(
-  normalized.slice(0, 6).map(p => ({
-    id: p._id || p.id,
-    name: p.name,
-    age: p.age,
-    bmi: p.vitals?.bmi,
-    egfr: p.vitals?.egfr,
-    hgb: p.vitals?.hemoglobin,
-    match: p.matchScore
-  }))
-);
-
-setSimilar(normalized);
-        
+        const arr = unwrapList(data);
+        const normalized = arr.map((d, i) => normalizePatient(d, i));
+        const enriched = await enrichPatients(normalized);
+        if (!canceled) setSimilar(enriched);
+        if (!canceled) setSimilar(normalized);
       } catch (e: any) {
         if (!canceled) setSimError(e.message || "Failed to load similar patients");
       } finally {
         if (!canceled) setSimLoading(false);
       }
     })();
+  
     return () => { canceled = true; };
   }, []);
-
+  
+  useEffect(() => {
+    let cancelled = false;
+  
+    (async () => {
+      if (!open || !selected) return;
+  
+      // If we already have rich details, skip.
+      if (hasRichDetails(selected.raw ?? selected)) return;
+  
+      const id = selected._id ?? selected.id;
+      if (!id) return;
+  
+      try {
+        setDetailsError(null);
+        setDetailsLoading(true);
+  
+        const full = await fetchFullPatientById(id);
+        if (cancelled) return;
+  
+        // Recompute stage/diagnosis if needed
+        const rawStage = full?.target ?? full?.prediction ?? full?.risk ?? full?.label;
+        const computedStage = prettyTarget(rawStage);
+        const computedDx =
+          (typeof full?.diagnosis === "string" && full.diagnosis.trim() !== "")
+            ? full.diagnosis
+            : (computedStage ?? selected.diagnosis);
+  
+        setSelected(prev => prev && ({
+          ...prev,
+          stage: prev.stage ?? computedStage,
+          diagnosis: prev.diagnosis ?? computedDx,
+          raw: full, // 🔑 now modal has the full 31 fields
+          vitals: {
+            bmi: prev.vitals?.bmi ?? asNum(full?.body_mass_index_bmi) ?? null,
+            egfr: prev.vitals?.egfr ?? asNum(full?.estimated_glomerular_filtration_rate_egfr) ?? null,
+            hemoglobin: prev.vitals?.hemoglobin ?? asNum(full?.hemoglobin_level_gms) ?? null,
+          },
+        }));
+      } catch (e: any) {
+        if (!cancelled) setDetailsError(e?.message || "Failed to load details");
+      } finally {
+        if (!cancelled) setDetailsLoading(false);
+      }
+    })();
+  
+    return () => { cancelled = true; };
+  }, [open, selected]);
+  
   /* =========================================================
      TAB 2: Explore (cohort search)
   ========================================================= */
@@ -371,25 +693,9 @@ setSimilar(normalized);
         pctHyperten: data.summary?.pctHyperten ?? null,
       });
 
-      // TEMP LOGS — browser console
-console.log("[COHORT] raw response:", data);
-
-const examples: any[] = Array.isArray(data.examples) ? data.examples : [];
-const normalized = examples.map((e, i) => normalizePatient(e, i));
-
-console.log("[COHORT] normalized[0..2]:", normalized.slice(0, 3));
-console.table(
-  normalized.slice(0, 6).map(p => ({
-    id: p._id || p.id,
-    name: p.name,
-    age: p.age,
-    bmi: p.vitals?.bmi,
-    egfr: p.vitals?.egfr,
-    hgb: p.vitals?.hemoglobin
-  }))
-);
-
-setPatients(normalized);
+      const examples: any[] = Array.isArray(data.examples) ? data.examples : [];
+      const normalized = examples.map((e, i) => normalizePatient(e, i));
+      setPatients(normalized);
     } catch (e: any) {
       setError(e?.message || "Cohort search failed");
     } finally {
@@ -397,22 +703,58 @@ setPatients(normalized);
     }
   }, [gender, ageMin, ageMax, smoking, diabetes, hypertension, ckd, activityArray]);
 
-  useEffect(() => { fetchCohort(); }, []); // initial
+  useEffect(() => { fetchCohort(); }, [fetchCohort]);
+// Raw → label mapping for the 31 fields we store in Mongo
+const RAW_FIELDS: Array<{ key: string; label: string; type?: "yn" | "text" }> = [
+  { key: "age_of_the_patient", label: "Age" },
+  { key: "smoking_status", label: "Smoking status", type: "yn" },
+  { key: "diabetes_mellitus_yesno", label: "Diabetes (Y/N)", type: "yn" },
+  { key: "hypertension_yesno", label: "Hypertension (Y/N)", type: "yn" },
+  { key: "physical_activity_level", label: "Physical activity" },
+  { key: "family_history_of_chronic_kidney_disease", label: "Family history of CKD", type: "yn" },
+  { key: "body_mass_index_bmi", label: "BMI" },
+  { key: "duration_of_diabetes_mellitus_years", label: "Duration of diabetes (yrs)" },
+  { key: "duration_of_hypertension_years", label: "Duration of hypertension (yrs)" },
+  { key: "coronary_artery_disease_yesno", label: "Coronary artery disease (Y/N)", type: "yn" },
+  { key: "serum_creatinine_mgdl", label: "Serum creatinine (mg/dL)" },
+  { key: "estimated_glomerular_filtration_rate_egfr", label: "eGFR" },
+  { key: "blood_urea_mgdl", label: "Blood urea (mg/dL)" },
+  { key: "hemoglobin_level_gms", label: "Hemoglobin (g/dL)" },
+  { key: "sodium_level_meql", label: "Sodium (mEq/L)" },
+  { key: "potassium_level_meql", label: "Potassium (mEq/L)" },
+  { key: "serum_albumin_level", label: "Serum albumin" },
+  { key: "cholesterol_level", label: "Cholesterol" },
+  { key: "random_blood_glucose_level_mgdl", label: "Random blood glucose (mg/dL)" },
+  { key: "cystatin_c_level", label: "Cystatin C" },
+  { key: "albumin_in_urine", label: "Albumin in urine" },
+  { key: "urine_proteintocreatinine_ratio", label: "Urine protein/creatinine ratio" },
+  { key: "specific_gravity_of_urine", label: "Specific gravity (urine)" },
+  { key: "red_blood_cells_in_urine", label: "RBC in urine" },
+  { key: "pus_cells_in_urine", label: "Pus cells in urine" },
+  { key: "bacteria_in_urine", label: "Bacteria in urine" },
+  { key: "blood_pressure_mmhg", label: "Blood pressure (mmHg)" },
+  { key: "appetite_goodpoor", label: "Appetite" },
+  { key: "pedal_edema_yesno", label: "Pedal edema (Y/N)", type: "yn" },
+  { key: "anemia_yesno", label: "Anemia (Y/N)", type: "yn" },
+  { key: "target", label: "Target / Diagnosis" },
+];
+const [detailsLoading, setDetailsLoading] = useState(false);
+const [detailsError, setDetailsError] = useState<string | null>(null);
 
   /* ---------- Segmented tabs UI ---------- */
   const SegTabs = () => (
-    <div className="w-full bg-muted/40 rounded-lg p-2 flex gap-4 items-center justify-center">
+    <div className="w-full rounded-xl p-2 flex gap-3 items-center justify-center bg-gradient-to-r from-emerald-50 to-emerald-100/50 ring-1 ring-emerald-100">
       <button
-        className={`px-5 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition
-          ${tab === "similar" ? "bg-background shadow-sm" : "opacity-70 hover:opacity-100"}`}
+        className={`px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition
+          ${tab === "similar" ? "bg-white shadow-sm text-emerald-700 ring-1 ring-emerald-200" : "text-slate-600 hover:text-emerald-700"}`}
         onClick={() => setTab("similar")}
       >
         <Users className="h-4 w-4" />
         <span>Similar</span>
       </button>
       <button
-        className={`px-5 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition
-          ${tab === "explore" ? "bg-background shadow-sm" : "opacity-70 hover:opacity-100"}`}
+        className={`px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition
+          ${tab === "explore" ? "bg-white shadow-sm text-emerald-700 ring-1 ring-emerald-200" : "text-slate-600 hover:text-emerald-700"}`}
         onClick={() => setTab("explore")}
       >
         <Filter className="h-4 w-4" />
@@ -422,24 +764,24 @@ setPatients(normalized);
   );
 
   return (
-    <div className="min-h-screen bg-gradient-dashboard">
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-emerald-50 via-white to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center mb-6">
-          <div className="flex justify-center mb-2"><Users className="h-10 w-10 text-primary" /></div>
-          <h1 className="text-4xl font-bold">Meet the Patients</h1>
+          <div className="flex justify-center mb-2">
+            <Users className="h-10 w-10 text-emerald-600" />
+          </div>
+          <h1 className="text-4xl font-bold text-slate-900">Meet the Patients</h1>
         </div>
 
-        {/* Tabs like screenshot */}
         <div className="mb-6">
           <SegTabs />
         </div>
 
-        {/* TAB CONTENTS */}
         {tab === "similar" ? (
-          <Card className="mb-8 shadow-card border-0">
+          <Card className="mb-8 border-0 shadow-md bg-white/70 backdrop-blur-sm ring-1 ring-emerald-100">
             <CardHeader>
-              <CardTitle>Patients like me</CardTitle>
-              <CardDescription>Closest matches from our dataset.</CardDescription>
+              <CardTitle className="text-slate-900">Patients like me</CardTitle>
+              <CardDescription>Explore similar patients and get early awareness.</CardDescription>
             </CardHeader>
             <CardContent>
               {simLoading && <p className="text-muted-foreground">Finding matches…</p>}
@@ -462,11 +804,10 @@ setPatients(normalized);
           </Card>
         ) : (
           <>
-            {/* Explore Filters */}
-            <Card className="mb-6 shadow-card border-0">
+            <Card className="mb-6 border-0 shadow-md bg-white/70 backdrop-blur-sm ring-1 ring-emerald-100">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-2 text-slate-900">
+                  <Filter className="h-5 w-5 text-emerald-600" />
                   Explore cohort
                 </CardTitle>
                 <CardDescription>Multi‑criteria, privacy‑safe search.</CardDescription>
@@ -525,9 +866,9 @@ setPatients(normalized);
                     </SelectContent>
                   </Select>
 
-                  <div className="col-span-2 text-sm rounded-lg border p-3">
-                    <div className="font-medium mb-2">Activity level</div>
-                    <div className="flex gap-4">
+                  <div className="col-span-2 text-sm rounded-lg border border-emerald-100 p-3 bg-emerald-50/40">
+                    <div className="font-medium mb-2 text-emerald-800">Activity level</div>
+                    <div className="flex gap-4 text-slate-700">
                       <label className="flex items-center gap-2">
                         <input type="checkbox" checked={actLow} onChange={() => setActLow(v => !v)} /> low
                       </label>
@@ -541,16 +882,20 @@ setPatients(normalized);
                   </div>
 
                   <div className="md:col-span-2 flex gap-3">
-                    <Button className="bg-green-500 text-white hover:bg-green-600" onClick={fetchCohort}>
+                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={fetchCohort}>
                       Search cohort
                     </Button>
-                    <Button variant="outline" onClick={() => {
-                      setGender("all");
-                      setAgeMin(""); setAgeMax("");
-                      setSmoking("any"); setDiabetes("any"); setHypertension("any"); setCkd("any");
-                      setActLow(true); setActMed(true); setActHigh(true);
-                      fetchCohort();
-                    }}>
+                    <Button
+                      variant="outline"
+                      className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      onClick={() => {
+                        setGender("all");
+                        setAgeMin(""); setAgeMax("");
+                        setSmoking("any"); setDiabetes("any"); setHypertension("any"); setCkd("any");
+                        setActLow(true); setActMed(true); setActHigh(true);
+                        fetchCohort();
+                      }}
+                    >
                       Reset
                     </Button>
                   </div>
@@ -560,28 +905,38 @@ setPatients(normalized);
 
             {/* KPIs */}
             <div className="mb-4 grid grid-cols-2 md:grid-cols-5 gap-3">
-              <Card className="border-0 shadow-card"><CardContent className="py-3">
-                <div className="text-xs text-muted-foreground">Total matches</div>
-                <div className="text-xl font-semibold">{total}</div>
-              </CardContent></Card>
-              <Card className="border-0 shadow-card"><CardContent className="py-3">
-                <div className="text-xs text-muted-foreground">Avg eGFR</div>
-                <div className="text-xl font-semibold">{kpi.avgEgfr ?? "—"}</div>
-              </CardContent></Card>
-              <Card className="border-0 shadow-card"><CardContent className="py-3">
-                <div className="text-xs text-muted-foreground">Median BMI</div>
-                <div className="text-xl font-semibold">{kpi.medBmi ?? "—"}</div>
-              </CardContent></Card>
-              <Card className="border-0 shadow-card"><CardContent className="py-3">
-                <div className="text-xs text-muted-foreground">% Smokers</div>
-                <div className="text-xl font-semibold">{kpi.pctSmokers ?? "—"}%</div>
-              </CardContent></Card>
-              <Card className="border-0 shadow-card"><CardContent className="py-3">
-                <div className="text-xs text-muted-foreground">% Diabetes / % HTN</div>
-                <div className="text-xl font-semibold">
-                  {kpi.pctDiabetes ?? "—"}% / {kpi.pctHyperten ?? "—"}%
-                </div>
-              </CardContent></Card>
+              <Card className="border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm">
+                <CardContent className="py-3">
+                  <div className="text-xs text-slate-500">Total matches</div>
+                  <div className="text-xl font-semibold text-slate-900">{total}</div>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm">
+                <CardContent className="py-3">
+                  <div className="text-xs text-slate-500">Avg eGFR</div>
+                  <div className="text-xl font-semibold text-slate-900">{kpi.avgEgfr ?? "—"}</div>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm">
+                <CardContent className="py-3">
+                  <div className="text-xs text-slate-500">Median BMI</div>
+                  <div className="text-xl font-semibold text-slate-900">{kpi.medBmi ?? "—"}</div>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm">
+                <CardContent className="py-3">
+                  <div className="text-xs text-slate-500">% Smokers</div>
+                  <div className="text-xl font-semibold text-slate-900">{kpi.pctSmokers ?? "—"}%</div>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm">
+                <CardContent className="py-3">
+                  <div className="text-xs text-slate-500">% Diabetes / % HTN</div>
+                  <div className="text-xl font-semibold text-slate-900">
+                    {kpi.pctDiabetes ?? "—"}% / {kpi.pctHyperten ?? "—"}%
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Results */}
@@ -592,10 +947,10 @@ setPatients(normalized);
             ) : patients.length > 0 ? (
               renderCards(patients)
             ) : (
-              <Card className="text-center py-12 shadow-card border-0 mt-6">
+              <Card className="text-center py-12 border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm mt-6">
                 <CardContent>
-                  <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No patients found</h3>
+                  <Users className="h-12 w-12 text-emerald-500 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium mb-2 text-slate-900">No patients found</h3>
                   <p className="text-muted-foreground">Try adjusting filters to broaden your cohort.</p>
                 </CardContent>
               </Card>
@@ -606,85 +961,99 @@ setPatients(normalized);
 
       {/* Modal */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-2xl rounded-2xl p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-3xl rounded-2xl p-0 overflow-hidden">
           {selected && (
             <>
-              <div className="bg-gradient-primary/10 px-6 py-5 border-b">
+              <div className="bg-emerald-50 px-6 py-5 border-b border-emerald-100">
                 <DialogHeader>
-                  <DialogTitle className="text-2xl">{selected.name}</DialogTitle>
-                  <DialogDescription>{selected.age ? `${selected.age} years old` : "—"}</DialogDescription>
+                  <DialogTitle className="text-2xl text-slate-900">{selected.name}</DialogTitle>
+                  <DialogDescription className="text-slate-600">
+                    {selected.age ? `${selected.age} years old` : "—"}
+                  </DialogDescription>
                 </DialogHeader>
                 {selected.stage && (
-                  <div className="mt-3">
-                    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                      {selected.stage}
-                    </Badge>
-                  </div>
-                )}
+  <div className="mt-3">
+    <Badge className={`${getStageBadge(selected.stage)} rounded-full`}>
+      {selected.stage}
+    </Badge>
+  </div>
+)}
+
               </div>
 
               <ScrollArea className="max-h-[70vh]">
                 <div className="p-6 space-y-6">
                   {selected.diagnosis && (
-                    <div className="flex items-center space-x-2">
-                      <Heart className="h-5 w-5 text-red-500" />
-                      <span className="font-medium">{selected.diagnosis}</span>
+                    <div className="flex items-center gap-2">
+                      <Heart className="h-5 w-5 text-rose-500" />
+                      <span className="font-medium text-slate-800">{selected.diagnosis}</span>
                     </div>
                   )}
 
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {selected.story || "No story available."}
-                  </p>
+                  
 
                   {selected.vitals && (
                     <div>
-                      <h4 className="text-sm font-semibold mb-2">Vitals</h4>
+                      <h4 className="text-sm font-semibold mb-2 text-slate-900">Vitals</h4>
                       <div className="grid grid-cols-3 gap-3 text-sm">
-                        <div className="rounded-lg bg-muted px-3 py-2"><div className="text-xs text-muted-foreground">BMI</div><div className="font-medium">{selected.vitals.bmi ?? "—"}</div></div>
-                        <div className="rounded-lg bg-muted px-3 py-2"><div className="text-xs text-muted-foreground">eGFR</div><div className="font-medium">{selected.vitals.egfr ?? "—"}</div></div>
-                        <div className="rounded-lg bg-muted px-3 py-2"><div className="text-xs text-muted-foreground">Hemoglobin</div><div className="font-medium">{selected.vitals.hemoglobin ?? "—"}</div></div>
+                        <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+                          <div className="text-xs text-emerald-700/90">BMI</div>
+                          <div className="font-medium text-slate-900">{selected.vitals.bmi ?? "—"}</div>
+                        </div>
+                        <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+                          <div className="text-xs text-emerald-700/90">eGFR</div>
+                          <div className="font-medium text-slate-900">{selected.vitals.egfr ?? "—"}</div>
+                        </div>
+                        <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+                          <div className="text-xs text-emerald-700/90">Hemoglobin</div>
+                          <div className="font-medium text-slate-900">{selected.vitals.hemoglobin ?? "—"}</div>
+                        </div>
                       </div>
                     </div>
                   )}
+
+                 
+                  {(() => {
+                    // Build a normalized 31‑field snapshot from whatever we have.
+                    // Works whether the backend sent a full raw Mongo doc or just a card.
+                    const details = buildDetails(selected.raw ?? selected);
+
+                    return (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2 text-slate-900">Clinical details</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {RAW_FIELDS.map(({ key, label, type }) => {
+                            const v = (details as any)[key];
+                            const display = type === "yn" ? yesNo(v) : fmt(v);
+                            return (
+                              <div key={key} className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+                                <div className="text-xs text-emerald-700/90">{label}</div>
+                                <div className="font-medium text-slate-900">{display}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {selected.riskFactors && selected.riskFactors.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-semibold mb-2">Risk Factors</h4>
+                      <h4 className="text-sm font-semibold mb-2 text-slate-900">Risk Factors</h4>
                       <div className="flex flex-wrap gap-2">
                         {selected.riskFactors.map((rf, i) => (
-                          <Badge key={i} variant="outline">{rf}</Badge>
+                          <Chip key={i} label={rf} />
                         ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {selected.labFlags && selected.labFlags.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">Lab Flags</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {selected.labFlags.map((f, i) => (
-                          <Badge key={i} variant="outline">{f}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {typeof selected.matchScore === "number" && (
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">Similarity Match</h4>
-                      <div className="flex items-center gap-3">
-                        <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-gradient-primary rounded-full" style={{ width: `${selected.matchScore}%` }} />
-                        </div>
-                        <span className="text-sm font-medium">{selected.matchScore}%</span>
                       </div>
                     </div>
                   )}
                 </div>
               </ScrollArea>
 
-              <div className="p-4 border-t flex justify-end">
-                <Button onClick={() => setOpen(false)} className="px-6">Close</Button>
+              <div className="p-4 border-t border-emerald-100 flex justify-end">
+                <Button onClick={() => setOpen(false)} className="px-6 bg-emerald-600 hover:bg-emerald-700 text-white">
+                  Close
+                </Button>
               </div>
             </>
           )}

@@ -21,6 +21,11 @@ export const Navbar = ({ isAuthenticated = false, onLogout }: NavbarProps) => {
     { to: "/analysis", label: "Lab Analysis" },
   ];
 
+  const userNavItems = [
+    { to: "/profile", label: "Profile" },
+    { to: "/admin", label: "Admin Dashboard" }, // This should be conditionally shown based on user role
+  ];
+
   const isActive = (path: string) => location.pathname === path;
 
   return (
@@ -39,6 +44,21 @@ export const Navbar = ({ isAuthenticated = false, onLogout }: NavbarProps) => {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
             {isAuthenticated && navItems.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={cn(
+                  "text-sm font-medium transition-colors hover:text-primary px-3 py-2 rounded-md",
+                  isActive(item.to)
+                    ? "text-primary bg-primary/10"
+                    : "text-muted-foreground"
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+            
+            {isAuthenticated && userNavItems.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
@@ -91,7 +111,7 @@ export const Navbar = ({ isAuthenticated = false, onLogout }: NavbarProps) => {
         {isOpen && (
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-card border-t border-border">
-              {isAuthenticated && navItems.map((item) => (
+              {isAuthenticated && [...navItems, ...userNavItems].map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}

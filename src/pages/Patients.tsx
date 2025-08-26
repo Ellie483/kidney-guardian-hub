@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Heart, Filter, Users } from "lucide-react";
+import { Loader } from "lucide-react";
+
 
 const hasRichDetails = (doc: any): boolean => {
   const d = doc?.patient ?? doc ?? {};
@@ -297,7 +299,7 @@ const normalizePatient = (raw: any, idx = 0): PatientCard => {
     src?.lifestyle?.activityLevel ??
     (typeof src.physical_activity_level === "string" ? src.physical_activity_level : null);
 
-  const name  = src.name || src.fullName || `Patient ${idx + 1}`;
+  const name  = src.name || src.fullName || `Profile ${idx + 1}`;
   const rawStageSource =
     src.target ??
     src.prediction ??
@@ -365,94 +367,102 @@ export default function Patients() {
   };
   
 
-  const renderCards = (arr: PatientCard[]) => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {arr.map((p, index) => {
-        // ✅ define it first
-        const stage = p.stage;                 // this is your risk label (No disease / Low / Moderate / High)
-        const vitals = p.vitals || {};
-        const previewRisks = (p.riskFactors || []).slice(0, 2);
-        const previewFlags = (p.labFlags || []).slice(0, 1);
-        const activity = p.lifestyle?.activityLevel;
-        return (
-          <Card
-            key={p._id || p.id || index}
-            className="shadow-card border-0 hover:shadow-hover transition-all duration-300 animate-fade-in"
-            style={{ animationDelay: `${index * 80}ms` }}
-          >
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg">{p.name || `Patient ${index + 1}`}</CardTitle>
-                  <CardDescription>{p.age ? `${p.age} years old` : "—"}</CardDescription>
-                </div>
-                {stage && (
-                  <Badge className={`${getStageBadge(stage)} rounded-full`}>{stage}</Badge>
-                )}
+
+// Add a function to close the modal
+const closeModal = () => {
+  setOpen(false);        // Close the modal
+};
+
+const renderCards = (arr: PatientCard[]) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {arr.map((p, index) => {
+      // Get the necessary values
+      const stage = p.stage;  // Stage or diagnosis of the patient
+      const vitals = p.vitals || {};
+      const previewRisks = (p.riskFactors || []).slice(0, 2);  // Limiting risk factors
+      const previewFlags = (p.labFlags || []).slice(0, 1);  // Limiting lab flags
+      const activity = p.lifestyle?.activityLevel;  // Activity level
+
+      return (
+        <Card
+  key={p._id || p.id || index}
+  className="shadow-card border border-emerald-100 hover:shadow-hover transition-all duration-300 animate-fade-in rounded-lg"
+  style={{ animationDelay: `${index * 80}ms` }}
+>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">{ `Profile ${index + 1}`}</CardTitle>
+                <CardDescription>{p.age ? `${p.age} years old` : "—"}</CardDescription>
               </div>
-              {p.diagnosis && (
-                <div className="flex items-center space-x-2 mt-1">
-                  <Heart className="h-4 w-4 text-red-500" />
-                  <span className="text-sm font-medium">{p.diagnosis}</span>
-                </div>
+              {stage && (
+                <Badge className={`${getStageBadge(stage)} rounded-full`}>{stage}</Badge>
               )}
-            </CardHeader>
+            </div>
+          </CardHeader>
 
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div>BMI: <span className="font-medium">{vitals.bmi ?? "—"}</span></div>
-                <div>eGFR: <span className="font-medium">{vitals.egfr ?? "—"}</span></div>
-                <div>Hgb: <span className="font-medium">{vitals.hemoglobin ?? "—"}</span></div>
-              </div>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div>BMI: <span className="font-medium">{vitals.bmi ?? "—"}</span></div>
+              <div>eGFR: <span className="font-medium">{vitals.egfr ?? "—"}</span></div>
+              <div>Hgb: <span className="font-medium">{vitals.hemoglobin ?? "—"}</span></div>
+            </div>
 
-              {previewRisks.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Risk Factors:</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {previewRisks.map((rf, i) => (
+            {/* Always display the title for Risk Factors, even if empty */}
+            <div className="mt-2">
+              <h4 className="text-sm font-medium mb-2">Risk Factors:</h4>
+              <div className="flex flex-wrap gap-1">
+                {previewRisks.length > 0
+                  ? previewRisks.map((rf, i) => (
                       <Badge key={i} variant="outline" className="text-xs">{rf}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    ))
+                  : <span className="text-slate-500">No risk factors</span>}
+              </div>
+            </div>
 
-              {activity && (
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Lifestyle:</h4>
-                <div className="flex flex-wrap gap-1">
+            {/* Always display the title for Lifestyle Activity */}
+            <div className="mt-2">
+              <h4 className="text-sm font-medium mb-2">Lifestyle:</h4>
+              <div className="flex flex-wrap gap-1">
+                {activity ? (
                   <Badge variant="outline" className="text-xs">
                     Activity: {String(activity).charAt(0).toUpperCase() + String(activity).slice(1)}
                   </Badge>
+                ) : (
+                  <span className="text-slate-500">No activity data</span>
+                )}
+              </div>
+            </div>
+
+            {/* Lab Flags */}
+            {previewFlags.length > 0 && (
+              <div className="mt-2">
+                <h4 className="text-sm font-medium mb-2">Lab Flag:</h4>
+                <div className="flex flex-wrap gap-1">
+                  {previewFlags.map((f, i) => (
+                    <Badge key={i} variant="outline" className="text-xs">{f}</Badge>
+                  ))}
                 </div>
               </div>
-              )}
+            )}
+          </CardContent>
 
-              {previewFlags.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Lab Flag:</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {previewFlags.map((f, i) => (
-                      <Badge key={i} variant="outline" className="text-xs">{f}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {/* Button positioned consistently at the bottom */}
+          <div className="p-2 flex justify-end">
+            <Button
+              className="bg-emerald-600 w-full text-white hover:bg-emerald-700"
+              variant="outline"
+              onClick={() => openModal(p)}
+            >
+              View details
+            </Button>
+          </div>
+        </Card>
+      );
+    })}
+  </div>
+);
 
-              <div className="pt-2">
-                <Button
-                  className="bg-emerald-600 w-full text-white hover:bg-emerald-700"
-                  variant="outline"
-                  onClick={() => openModal(p)}
-                >
-                  View details
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
-  );
   async function enrichPatients(cards: PatientCard[]): Promise<PatientCard[]> {
     const results = await Promise.allSettled(
       cards.map(async (c) => {
@@ -637,71 +647,79 @@ export default function Patients() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [gender, setGender] = useState<"all" | "male" | "female">("all");
+  const [activityLevel, setActivityLevel] = useState<"low" | "moderate" | "high" | null>("low");
+  const [familyHistory, setFamilyHistory] = useState<"any" | "yes" | "no">("any");
+
+  // const [gender, setGender] = useState<"all" | "male" | "female">("all");
   const [ageMin, setAgeMin] = useState<string>("");
   const [ageMax, setAgeMax] = useState<string>("");
   const [smoking, setSmoking] = useState<"any" | "yes" | "no">("any");
   const [diabetes, setDiabetes] = useState<"any" | "yes" | "no">("any");
   const [hypertension, setHypertension] = useState<"any" | "yes" | "no">("any");
-  const [ckd, setCkd] = useState<"any" | "yes" | "no">("any");
+  const [ckd, setCkd] = useState<"no_disease" | "low" | "moderate" | "high" | "any">("any");
 
-  const [actLow, setActLow] = useState(true);
-  const [actMed, setActMed] = useState(true);
-  const [actHigh, setActHigh] = useState(true);
+  // const [actLow, setActLow] = useState(true);
+  // const [actMed, setActMed] = useState(true);
+  // const [actHigh, setActHigh] = useState(true);
 
-  const activityArray = useMemo(() => {
-    const arr: string[] = [];
-    if (actLow) arr.push("low");
-    if (actMed) arr.push("moderate");
-    if (actHigh) arr.push("high");
-    return arr;
-  }, [actLow, actMed, actHigh]);
+  // const activityArray = useMemo(() => {
+  //   const arr: string[] = [];
+  //   if (actLow) arr.push("low");
+  //   if (actMed) arr.push("moderate");
+  //   if (actHigh) arr.push("high");
+  //   return arr;
+  // }, [actLow, actMed, actHigh]);
 
   const booleanChoice = (v: "any" | "yes" | "no") =>
     v === "yes" ? true : v === "no" ? false : undefined;
 
-  const fetchCohort = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const body = {
-        filters: {
-          gender: gender === "all" ? undefined : gender,
-          age: { min: toNum(ageMin), max: toNum(ageMax) },
-          smoking: booleanChoice(smoking),
-          diabetes: booleanChoice(diabetes),
-          hypertension: booleanChoice(hypertension),
-          ckd: booleanChoice(ckd),
-          activity: activityArray.length === 3 ? undefined : activityArray,
-        },
-        sampleLimit: 9,
-      };
-      const res = await fetch(`${API_BASE}/search/cohort`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      setTotal(data.total ?? 0);
-      setKpi({
-        avgEgfr: data.summary?.avgEgfr ?? null,
-        medBmi: data.summary?.medBmi ?? null,
-        pctSmokers: data.summary?.pctSmokers ?? null,
-        pctDiabetes: data.summary?.pctDiabetes ?? null,
-        pctHyperten: data.summary?.pctHyperten ?? null,
-      });
-
-      const examples: any[] = Array.isArray(data.examples) ? data.examples : [];
-      const normalized = examples.map((e, i) => normalizePatient(e, i));
-      setPatients(normalized);
-    } catch (e: any) {
-      setError(e?.message || "Cohort search failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [gender, ageMin, ageMax, smoking, diabetes, hypertension, ckd, activityArray]);
+    const fetchCohort = useCallback(async () => {
+      try {
+        setLoading(true);
+        setError(null);
+    
+        // Prepare the body for the request based on the updated filters
+        const body = {
+          filters: {
+            familyHistory, // Replace gender with familyHistory
+            age: { min: toNum(ageMin), max: toNum(ageMax) },
+            smoking: booleanChoice(smoking),
+            diabetes: booleanChoice(diabetes),
+            hypertension: booleanChoice(hypertension),
+            ckd: ckd === "any" ? undefined : ckd, // CKD stages: "low", "moderate", "high"
+            activity: activityLevel ? [activityLevel] : [], // Only one activity level
+          },
+          sampleLimit: 12,
+        };
+    
+        const res = await fetch(`${API_BASE}/search/cohort`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+    
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+    
+        setTotal(data.total ?? 0);
+        setKpi({
+          avgEgfr: data.summary?.avgEgfr ?? null,
+          medBmi: data.summary?.medBmi ?? null,
+          pctSmokers: data.summary?.pctSmokers ?? null,
+          pctDiabetes: data.summary?.pctDiabetes ?? null,
+          pctHyperten: data.summary?.pctHyperten ?? null,
+        });
+    
+        const examples: any[] = Array.isArray(data.examples) ? data.examples : [];
+        const normalized = examples.map((e, i) => normalizePatient(e, i));
+        setPatients(normalized);
+      } catch (e: any) {
+        setError(e?.message || "Cohort search failed");
+      } finally {
+        setLoading(false);
+      }
+    }, [familyHistory, ageMin, ageMax, smoking, diabetes, hypertension, ckd, activityLevel]);
+    
 
   useEffect(() => { fetchCohort(); }, [fetchCohort]);
 // Raw → label mapping for the 31 fields we store in Mongo
@@ -743,24 +761,24 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
 
   /* ---------- Segmented tabs UI ---------- */
   const SegTabs = () => (
-    <div className="w-full rounded-xl p-2 flex gap-3 items-center justify-center bg-gradient-to-r from-emerald-50 to-emerald-100/50 ring-1 ring-emerald-100">
-      <button
-        className={`px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition
-          ${tab === "similar" ? "bg-white shadow-sm text-emerald-700 ring-1 ring-emerald-200" : "text-slate-600 hover:text-emerald-700"}`}
-        onClick={() => setTab("similar")}
-      >
-        <Users className="h-4 w-4" />
-        <span>Similar</span>
-      </button>
-      <button
-        className={`px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition
-          ${tab === "explore" ? "bg-white shadow-sm text-emerald-700 ring-1 ring-emerald-200" : "text-slate-600 hover:text-emerald-700"}`}
-        onClick={() => setTab("explore")}
-      >
-        <Filter className="h-4 w-4" />
-        <span>Explore</span>
-      </button>
-    </div>
+    <div className="w-full rounded-xl p-2 flex gap-3 items-center justify-between bg-gradient-to-r from-emerald-50 to-emerald-100/50 ring-1 ring-emerald-100">
+  <button
+    className={`flex-1 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition
+      ${tab === "similar" ? "bg-white shadow-sm text-emerald-700 ring-1 ring-emerald-200" : "text-slate-600 hover:text-emerald-700"}`}
+    onClick={() => setTab("similar")}
+  >
+    <Users className="h-4 w-4" />
+    <span>Similar Health Profiles</span>
+  </button>
+  <button
+    className={`flex-1 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition
+      ${tab === "explore" ? "bg-white shadow-sm text-emerald-700 ring-1 ring-emerald-200" : "text-slate-600 hover:text-emerald-700"}`}
+    onClick={() => setTab("explore")}
+  >
+    <Filter className="h-4 w-4" />
+    <span>Explore Health Profiles</span>
+  </button>
+</div>
   );
 
   return (
@@ -770,21 +788,25 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
           <div className="flex justify-center mb-2">
             <Users className="h-10 w-10 text-emerald-600" />
           </div>
-          <h1 className="text-4xl font-bold text-slate-900">Meet the Patients</h1>
+          <h1 className="text-4xl font-bold text-slate-900">Health Profiles</h1>
         </div>
-
+  
         <div className="mb-6">
           <SegTabs />
         </div>
-
+  
         {tab === "similar" ? (
           <Card className="mb-8 border-0 shadow-md bg-white/70 backdrop-blur-sm ring-1 ring-emerald-100">
             <CardHeader>
-              <CardTitle className="text-slate-900">Patients like me</CardTitle>
-              <CardDescription>Explore similar patients and get early awareness.</CardDescription>
+              <CardDescription>Explore similar profiles and get early awareness.</CardDescription>
             </CardHeader>
             <CardContent>
-              {simLoading && <p className="text-muted-foreground">Finding matches…</p>}
+              {simLoading && (
+  <div className="flex items-center gap-2">
+    <Loader className="animate-spin h-5 w-5 text-emerald-600" /> {/* Spinner */}
+    <p className="text-muted-foreground">Finding matches…</p>
+  </div>
+)}
               {simError && <span className="text-sm text-destructive">{simError}</span>}
               {!simLoading && !simError && similar.length > 0 && (
                 <>
@@ -806,10 +828,6 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
           <>
             <Card className="mb-6 border-0 shadow-md bg-white/70 backdrop-blur-sm ring-1 ring-emerald-100">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <Filter className="h-5 w-5 text-emerald-600" />
-                  Explore cohort
-                </CardTitle>
                 <CardDescription>Multi‑criteria, privacy‑safe search.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -818,16 +836,7 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
                     <Input placeholder="Age min" value={ageMin} onChange={(e) => setAgeMin(e.target.value)} />
                     <Input placeholder="Age max" value={ageMax} onChange={(e) => setAgeMax(e.target.value)} />
                   </div>
-
-                  <Select value={gender} onValueChange={(v: any) => setGender(v)}>
-                    <SelectTrigger><SelectValue placeholder="Gender" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Genders</SelectItem>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
-                    </SelectContent>
-                  </Select>
-
+  
                   <Select value={smoking} onValueChange={(v: any) => setSmoking(v)}>
                     <SelectTrigger><SelectValue placeholder="Smoking" /></SelectTrigger>
                     <SelectContent>
@@ -836,7 +845,7 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
                       <SelectItem value="no">Smoking: No</SelectItem>
                     </SelectContent>
                   </Select>
-
+  
                   <Select value={diabetes} onValueChange={(v: any) => setDiabetes(v)}>
                     <SelectTrigger><SelectValue placeholder="Diabetes" /></SelectTrigger>
                     <SelectContent>
@@ -845,7 +854,7 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
                       <SelectItem value="no">Diabetes: No</SelectItem>
                     </SelectContent>
                   </Select>
-
+  
                   <Select value={hypertension} onValueChange={(v: any) => setHypertension(v)}>
                     <SelectTrigger><SelectValue placeholder="Hypertension" /></SelectTrigger>
                     <SelectContent>
@@ -854,45 +863,59 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
                       <SelectItem value="no">Hypertension: No</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-                  <Select value={ckd} onValueChange={(v: any) => setCkd(v)}>
-                    <SelectTrigger><SelectValue placeholder="CKD" /></SelectTrigger>
+  
+                  {/* Family History of CKD */}
+                  <Select value={familyHistory} onValueChange={(v: any) => setFamilyHistory(v)}>
+                    <SelectTrigger><SelectValue placeholder="Family History of CKD" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="any">CKD: Any</SelectItem>
-                      <SelectItem value="yes">CKD: Yes (eGFR &lt; 60)</SelectItem>
-                      <SelectItem value="no">CKD: No (eGFR ≥ 60)</SelectItem>
+                      <SelectItem value="any">Any Family History</SelectItem>
+                      <SelectItem value="yes">Family History: Yes</SelectItem>
+                      <SelectItem value="no">Family History: No</SelectItem>
                     </SelectContent>
                   </Select>
-
+                </div>
+  
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                  {/* CKD Stage */}
+                  <Select value={ckd} onValueChange={(v: any) => setCkd(v)}>
+                    <SelectTrigger><SelectValue placeholder="Select CKD Stage" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any CKD Stage</SelectItem>
+                      <SelectItem value="no_disease">CKD: No Disease</SelectItem>
+                      <SelectItem value="low_risk">CKD: Low Risk</SelectItem>
+                      <SelectItem value="moderate_risk">CKD: Moderate Risk</SelectItem>
+                      <SelectItem value="high_risk">CKD: High Risk</SelectItem>
+                    </SelectContent>
+                  </Select>
+  
+                  {/* Activity Level - Only One Selection Allowed */}
                   <div className="col-span-2 text-sm rounded-lg border border-emerald-100 p-3 bg-emerald-50/40">
                     <div className="font-medium mb-2 text-emerald-800">Activity level</div>
                     <div className="flex gap-4 text-slate-700">
                       <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={actLow} onChange={() => setActLow(v => !v)} /> low
+                        <input type="radio" checked={activityLevel === "low"} onChange={() => setActivityLevel("low")} /> low
                       </label>
                       <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={actMed} onChange={() => setActMed(v => !v)} /> moderate
+                        <input type="radio" checked={activityLevel === "moderate"} onChange={() => setActivityLevel("moderate")} /> moderate
                       </label>
                       <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={actHigh} onChange={() => setActHigh(v => !v)} /> high
+                        <input type="radio" checked={activityLevel === "high"} onChange={() => setActivityLevel("high")} /> high
                       </label>
                     </div>
                   </div>
-
+  
                   <div className="md:col-span-2 flex gap-3">
                     <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={fetchCohort}>
-                      Search cohort
+                      Search 
                     </Button>
                     <Button
                       variant="outline"
                       className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                       onClick={() => {
-                        setGender("all");
-                        setAgeMin(""); setAgeMax("");
-                        setSmoking("any"); setDiabetes("any"); setHypertension("any"); setCkd("any");
-                        setActLow(true); setActMed(true); setActHigh(true);
+                        setAgeMin(""); setAgeMax(""); setSmoking("any");
+                        setDiabetes("any"); setHypertension("any");
+                        setFamilyHistory("any"); setCkd("any");
+                        setActivityLevel("low");
                         fetchCohort();
                       }}
                     >
@@ -902,43 +925,7 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
                 </div>
               </CardContent>
             </Card>
-
-            {/* KPIs */}
-            <div className="mb-4 grid grid-cols-2 md:grid-cols-5 gap-3">
-              <Card className="border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm">
-                <CardContent className="py-3">
-                  <div className="text-xs text-slate-500">Total matches</div>
-                  <div className="text-xl font-semibold text-slate-900">{total}</div>
-                </CardContent>
-              </Card>
-              <Card className="border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm">
-                <CardContent className="py-3">
-                  <div className="text-xs text-slate-500">Avg eGFR</div>
-                  <div className="text-xl font-semibold text-slate-900">{kpi.avgEgfr ?? "—"}</div>
-                </CardContent>
-              </Card>
-              <Card className="border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm">
-                <CardContent className="py-3">
-                  <div className="text-xs text-slate-500">Median BMI</div>
-                  <div className="text-xl font-semibold text-slate-900">{kpi.medBmi ?? "—"}</div>
-                </CardContent>
-              </Card>
-              <Card className="border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm">
-                <CardContent className="py-3">
-                  <div className="text-xs text-slate-500">% Smokers</div>
-                  <div className="text-xl font-semibold text-slate-900">{kpi.pctSmokers ?? "—"}%</div>
-                </CardContent>
-              </Card>
-              <Card className="border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm">
-                <CardContent className="py-3">
-                  <div className="text-xs text-slate-500">% Diabetes / % HTN</div>
-                  <div className="text-xl font-semibold text-slate-900">
-                    {kpi.pctDiabetes ?? "—"}% / {kpi.pctHyperten ?? "—"}%
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
+  
             {/* Results */}
             {loading ? (
               <div className="text-muted-foreground">Loading cohort…</div>
@@ -950,115 +937,101 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
               <Card className="text-center py-12 border-0 shadow-sm ring-1 ring-emerald-100 bg-white/70 backdrop-blur-sm mt-6">
                 <CardContent>
                   <Users className="h-12 w-12 text-emerald-500 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2 text-slate-900">No patients found</h3>
+                  <h3 className="text-lg font-medium mb-2 text-slate-900">No matching profiles found</h3>
                   <p className="text-muted-foreground">Try adjusting filters to broaden your cohort.</p>
                 </CardContent>
               </Card>
             )}
           </>
         )}
-      </div>
-
-      {/* Modal */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-3xl rounded-2xl p-0 overflow-hidden">
-          {selected && (
-            <>
-              <div className="bg-emerald-50 px-6 py-5 border-b border-emerald-100">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl text-slate-900">{selected.name}</DialogTitle>
-                  <DialogDescription className="text-slate-600">
-                    {selected.age ? `${selected.age} years old` : "—"}
-                  </DialogDescription>
-                </DialogHeader>
-                {selected.stage && (
-  <div className="mt-3">
-    <Badge className={`${getStageBadge(selected.stage)} rounded-full`}>
-      {selected.stage}
-    </Badge>
-  </div>
-)}
-
-              </div>
-
-              <ScrollArea className="max-h-[70vh]">
-                <div className="p-6 space-y-6">
-                  {selected.diagnosis && (
-                    <div className="flex items-center gap-2">
-                      <Heart className="h-5 w-5 text-rose-500" />
-                      <span className="font-medium text-slate-800">{selected.diagnosis}</span>
-                    </div>
-                  )}
-
-                  
-
-                  {selected.vitals && (
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2 text-slate-900">Vitals</h4>
-                      <div className="grid grid-cols-3 gap-3 text-sm">
-                        <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
-                          <div className="text-xs text-emerald-700/90">BMI</div>
-                          <div className="font-medium text-slate-900">{selected.vitals.bmi ?? "—"}</div>
-                        </div>
-                        <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
-                          <div className="text-xs text-emerald-700/90">eGFR</div>
-                          <div className="font-medium text-slate-900">{selected.vitals.egfr ?? "—"}</div>
-                        </div>
-                        <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
-                          <div className="text-xs text-emerald-700/90">Hemoglobin</div>
-                          <div className="font-medium text-slate-900">{selected.vitals.hemoglobin ?? "—"}</div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                 
-                  {(() => {
-                    // Build a normalized 31‑field snapshot from whatever we have.
-                    // Works whether the backend sent a full raw Mongo doc or just a card.
-                    const details = buildDetails(selected.raw ?? selected);
-
-                    return (
-                      <div>
-                        <h4 className="text-sm font-semibold mb-2 text-slate-900">Clinical details</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {RAW_FIELDS.map(({ key, label, type }) => {
-                            const v = (details as any)[key];
-                            const display = type === "yn" ? yesNo(v) : fmt(v);
-                            return (
-                              <div key={key} className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
-                                <div className="text-xs text-emerald-700/90">{label}</div>
-                                <div className="font-medium text-slate-900">{display}</div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {selected.riskFactors && selected.riskFactors.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2 text-slate-900">Risk Factors</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {selected.riskFactors.map((rf, i) => (
-                          <Chip key={i} label={rf} />
-                        ))}
-                      </div>
-                    </div>
-                  )}
+  
+        {/* Modal */}
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="sm:max-w-3xl rounded-2xl p-0 overflow-hidden">
+            {selected && (
+              <>
+                <div className="bg-emerald-50 px-6 py-5 border-b border-emerald-100">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl text-slate-900">{selected.name}</DialogTitle>
+                    <DialogDescription className="text-slate-600">
+                      {selected.age ? `${selected.age} years old` : "—"}
+                    </DialogDescription>
+                  </DialogHeader>
                 </div>
-              </ScrollArea>
-
-              <div className="p-4 border-t border-emerald-100 flex justify-end">
-                <Button onClick={() => setOpen(false)} className="px-6 bg-emerald-600 hover:bg-emerald-700 text-white">
-                  Close
-                </Button>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+  
+                <ScrollArea className="max-h-[70vh]">
+                  <div className="p-6 space-y-6">
+                    {selected.diagnosis && (
+                      <div className="flex items-center gap-2">
+                        <Heart className="h-5 w-5 text-rose-500" />
+                        <span className="font-medium text-slate-800">{selected.diagnosis}</span>
+                      </div>
+                    )}
+  
+                    {selected.vitals && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2 text-slate-900">Vitals</h4>
+                        <div className="grid grid-cols-3 gap-3 text-sm">
+                          <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+                            <div className="text-xs text-emerald-700/90">BMI</div>
+                            <div className="font-medium text-slate-900">{selected.vitals.bmi ?? "—"}</div>
+                          </div>
+                          <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+                            <div className="text-xs text-emerald-700/90">eGFR</div>
+                            <div className="font-medium text-slate-900">{selected.vitals.egfr ?? "—"}</div>
+                          </div>
+                          <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+                            <div className="text-xs text-emerald-700/90">Hemoglobin</div>
+                            <div className="font-medium text-slate-900">{selected.vitals.hemoglobin ?? "—"}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+  
+                    {(() => {
+                      const details = buildDetails(selected.raw ?? selected);
+                      return (
+                        <div>
+                          <h4 className="text-sm font-semibold mb-2 text-slate-900">Clinical details</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {RAW_FIELDS.map(({ key, label, type }) => {
+                              const v = (details as any)[key];
+                              const display = type === "yn" ? yesNo(v) : fmt(v);
+                              return (
+                                <div key={key} className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+                                  <div className="text-xs text-emerald-700/90">{label}</div>
+                                  <div className="font-medium text-slate-900">{display}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+  
+                    {selected.riskFactors && selected.riskFactors.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2 text-slate-900">Risk Factors</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selected.riskFactors.map((rf, i) => (
+                            <Chip key={i} label={rf} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+  
+                <div className="p-4 border-t border-emerald-100 flex justify-end">
+                  <Button onClick={() => setOpen(false)} className="px-6 bg-emerald-600 hover:bg-emerald-700 text-white">
+                    Close
+                  </Button>
+                </div>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }

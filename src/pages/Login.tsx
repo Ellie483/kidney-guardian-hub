@@ -30,26 +30,35 @@ export default function Login({ onLogin }: LoginProps) {
         credentials: "include",
         body: JSON.stringify({ email, password }),
       });
+  
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || `Login failed (HTTP ${res.status})`);
       }
-      const data = await res.json(); // { ok: true, id, user }
+  
+      const data = await res.json();
       const u: AppUser = data.user || {};
       if (data.id) u._id = data.id;
-
+  
       localStorage.setItem("kidneyguard_user", JSON.stringify(u));
       if (u._id) localStorage.setItem("userId", u._id);
-
+  
       onLogin(u);
-      toast.success("Welcome back! Logged in successfully.");
-      navigate("/", { replace: true });
+      toast.success("Welcome back!");
+  
+      // redirect based on role
+      if (u.role === "admin") {
+        navigate("/admin-dashboard", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
     } catch (err: any) {
       toast.error(err?.message || "Login failed");
     } finally {
       setIsLoading(false);
     }
   };
+  
 
   return (
     <div className="min-h-screen bg-gradient-dashboard flex items-center justify-center p-4">

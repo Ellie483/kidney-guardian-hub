@@ -91,6 +91,7 @@ function normalizePatientDoc(p, index = 0) {
     diabetic: typeof diabetic === "boolean" ? diabetic : null,
     highBP: typeof highBP === "boolean" ? highBP : null,
     smokes: typeof smokes === "boolean" ? smokes : null,
+    activityLevel: activityLevel, 
   };
 
   const stage = p.stage || stageFromEgfr(vitals.egfr);
@@ -248,6 +249,7 @@ exports.getSimilarPatients = async (req, res) => {
         diabetic: (user.medicalConditions || []).includes("Diabetes"),
         highBP: (user.medicalConditions || []).includes("Hypertension"),
         smokes: user.smokeAlcohol === "Yes",
+        activityLevel: user.activityLevel || null,
       },
       vitals: {
         egfr: toNum(user?.vitals?.egfr) ?? null,

@@ -24,6 +24,7 @@ export interface AppUser  {
   _id?: string;
   name: string;
   email: string;
+  role: string;
   age?: number;
   gender?: string;
   heightFeet?: number;
@@ -40,7 +41,7 @@ export interface AppUser  {
 const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
 const App = () => {
-  const [user, setUser] = useState<AppUser  | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Restore session from localStorage
@@ -57,14 +58,14 @@ const App = () => {
   }, []);
 
   // Called by <Signup />
-  const handleSignup = (createdUser: AppUser ) => {
+  const handleSignup = (createdUser: AppUser) => {
     setUser(createdUser);
     localStorage.setItem("kidneyguard_user", JSON.stringify(createdUser));
     if (createdUser._id) localStorage.setItem("userId", createdUser._id);
   };
 
   // Called by <Login />
-  const handleLogin = (loggedInUser: AppUser ) => {
+  const handleLogin = (loggedInUser: AppUser) => {
     setUser(loggedInUser);
     localStorage.setItem("kidneyguard_user", JSON.stringify(loggedInUser));
     if (loggedInUser._id) localStorage.setItem("userId", loggedInUser._id);
@@ -95,7 +96,10 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <div className="min-h-screen bg-background">
-            <Navbar isAuthenticated={!!user} onLogout={handleLogout} />
+            {/* Conditionally render Navbar */}
+            {window.location.pathname !== "/admin-dashboard" && (
+              <Navbar isAuthenticated={!!user} onLogout={handleLogout} />
+            )}
             <Routes>
               <Route
                 path="/"
@@ -129,9 +133,10 @@ const App = () => {
                 path="/profile"
                 element={user ? <Profile /> : <Navigate to="/login" replace />}
               />
+              {/* Admin route with role-based protection */}
               <Route
-                path="/admin"
-                element={<AdminDashboard />}
+                path="/admin-dashboard"
+                element={user && user.role === "admin" ? <AdminDashboard /> : <Navigate to="/" replace />}
               />
               <Route path="*" element={<NotFound />} />
             </Routes>

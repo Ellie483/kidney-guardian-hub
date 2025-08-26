@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema(
     bloodType: { type: String },
     familyHistory: { type: String },
     medications: { type: String },
-    smokeAlcohol: { type: String, enum: ["Yes", "No"] },
+    smoke: { type: String, enum: ["Yes", "No"] },
     registeredAt: { type: Date, default: Date.now },
   },
   { collection: "users" }
@@ -44,7 +44,7 @@ userSchema.methods.normalizedProfile = function () {
     diabetic: has("diabetes"),
     hypertension: has("hypertension"),
     ckd: has("chronic kidney disease"),
-    smokes: String(this.smokeAlcohol || "").toLowerCase() === "yes" ? true : false,
+    smokes: String(this.smoke || "").toLowerCase() === "yes" ? true : false,
     activity: undefined, // add if you collect it later
   };
 };

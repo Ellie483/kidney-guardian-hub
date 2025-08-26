@@ -24,7 +24,7 @@ interface UserProfile {
   medicalConditions?: string[];
   familyHistory?: string;
   medications?: string;
-  smokeAlcohol?: string;
+  smoke?: string;
   registeredAt: string;
 }
 
@@ -328,9 +328,9 @@ const Profile = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="smokeAlcohol">Smoke/Alcohol</Label>
+                  <Label htmlFor="smoke">Smoke/Alcohol</Label>
                   {editing ? (
-                    <Select value={formData?.smokeAlcohol || ''} onValueChange={(value) => updateFormData('smokeAlcohol', value)}>
+                    <Select value={formData?.smoke || ''} onValueChange={(value) => updateFormData('smoke', value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select option" />
                       </SelectTrigger>
@@ -340,7 +340,7 @@ const Profile = () => {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <p className="p-2 bg-muted/50 rounded-md">{user.smokeAlcohol || 'Not specified'}</p>
+                    <p className="p-2 bg-muted/50 rounded-md">{user.smoke || 'Not specified'}</p>
                   )}
                 </div>
               </div>

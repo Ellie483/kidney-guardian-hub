@@ -128,7 +128,7 @@ function buildHardFilterFromUser(u) {
     // don't hard filter eGFR here; leave it soft. But you can uncomment:
     // filt["vitals.egfr"] = { $gte: 30 }; // example soft-ish hard filter
   }
-  if (u?.smokeAlcohol === "No") filt["lifestyle.smokes"] = { $in: [false, null] };
+  if (u?.smoke === "No") filt["lifestyle.smokes"] = { $in: [false, null] };
 
   const hasDiab = (u?.medicalConditions || []).includes("Diabetes");
   if (!hasDiab) filt["lifestyle.diabetic"] = { $in: [false, null] };
@@ -248,7 +248,7 @@ exports.getSimilarPatients = async (req, res) => {
       lifestyle: {
         diabetic: (user.medicalConditions || []).includes("Diabetes"),
         highBP: (user.medicalConditions || []).includes("Hypertension"),
-        smokes: user.smokeAlcohol === "Yes",
+        smokes: user.smoke === "Yes",
         activityLevel: user.activityLevel || null,
       },
       vitals: {
@@ -256,7 +256,7 @@ exports.getSimilarPatients = async (req, res) => {
         bmi:  toNum(user?.vitals?.bmi)  ?? null,
       },
       medicalConditions: user.medicalConditions || [],
-      smokeAlcohol: user.smokeAlcohol,
+      smoke: user.smoke,
     };
 
     // 2) candidate pool

@@ -34,7 +34,7 @@ interface DashboardProps {
     medicalConditions?: string[];
     medications?: string;
     familyHistory?: string;
-    smokeAlcohol?: string;
+    smoke?: string;
     registeredAt?: string;
   };
 }
@@ -74,7 +74,7 @@ export default function Dashboard({ user }: DashboardProps) {
   // Risk factors: count medical conditions + smoking/alcohol
   const riskFactors =
     (user.medicalConditions?.length || 0) +
-    (user.smokeAlcohol === "Yes" ? 1 : 0);
+    (user.smoke === "Yes" ? 1 : 0);
 
   const healthScore = Math.max(20, 100 - riskFactors * 15);
 
@@ -82,7 +82,7 @@ export default function Dashboard({ user }: DashboardProps) {
   const getPersonalizedTips = () => {
     const tips: string[] = [];
 
-    if (user.smokeAlcohol === "Yes") tips.push("Consider reducing smoking/alcohol consumption for kidney health.");
+    if (user.smoke === "Yes") tips.push("Consider reducing smoking/alcohol consumption for kidney health.");
     if (user.medicalConditions?.includes("Diabetes")) tips.push("Monitor your blood sugar levels regularly.");
     if (user.medicalConditions?.includes("Hypertension")) tips.push("Keep your blood pressure under control.");
     if (!user.age) tips.push("Stay physically active to maintain kidney health.");

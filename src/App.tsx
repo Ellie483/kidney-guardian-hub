@@ -34,7 +34,7 @@ export interface AppUser  {
   bloodType?: string;
   familyHistory?: string;
   medications?: string;
-  smokeAlcohol?: "Yes" | "No";
+  smoke?: "Yes" | "No";
   registeredAt?: string;
 }
 

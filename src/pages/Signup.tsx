@@ -30,7 +30,7 @@ export default function Signup({ onSignup }: SignupProps) {
     bloodType: "",
     familyHistory: "",
     medications: "",
-    smokeAlcohol: "",
+    smoke: "",
   });
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -271,9 +271,9 @@ export default function Signup({ onSignup }: SignupProps) {
                   <div className="flex gap-4">
                     {["Yes","No"].map((opt)=>(
                       <label key={opt}>
-                        <input type="radio" name="smokeAlcohol" value={opt}
-                          checked={formData.smokeAlcohol===opt}
-                          onChange={(e)=> setFormData((p:any)=>({ ...p, smokeAlcohol: e.target.value }))} /> {opt}
+                        <input type="radio" name="smoke" value={opt}
+                          checked={formData.smoke===opt}
+                          onChange={(e)=> setFormData((p:any)=>({ ...p, smoke: e.target.value }))} /> {opt}
                       </label>
                     ))}
                   </div>

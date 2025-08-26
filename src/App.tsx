@@ -13,6 +13,8 @@ import Patients from "./pages/Patients";
 import Awareness from "./pages/Awareness";
 import Games from "./pages/Games";
 import LabAnalysis from "./pages/LabAnalysis";
+import Profile from "./pages/Profile";
+import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -122,6 +124,14 @@ const App = () => {
               <Route
                 path="/analysis"
                 element={user ? <LabAnalysis /> : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="/profile"
+                element={user ? <Profile /> : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="/admin"
+                element={user ? <AdminDashboard /> : <Navigate to="/login" replace />}
               />
               <Route path="*" element={<NotFound />} />
             </Routes>

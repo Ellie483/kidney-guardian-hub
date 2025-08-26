@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema(
     // replaced medications with physical activity
     physicalActivity: { type: String, enum: ["Low", "Moderate", "High"] },
 
-    // replaced smokeAlcohol with smoke only
+    // replaced smoke with smoke only
     smoke: { type: String, enum: ["Yes", "No"] },
 
     registeredAt: { type: Date, default: Date.now },

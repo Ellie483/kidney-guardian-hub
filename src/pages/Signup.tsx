@@ -30,7 +30,7 @@ export default function Signup({ onSignup }: SignupProps) {
     bloodType: "",
     familyHistory: "",
     medications: "",
-    smokeAlcohol: "",
+    smoke: "",
   });
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -199,6 +199,7 @@ export default function Signup({ onSignup }: SignupProps) {
           ) : (
             <form onSubmit={handleComplete}>
               <CardContent className="space-y-4">
+                 <div className="flex gap-4">
                 <Input type="number" placeholder="Age" min={0}
                   value={formData.age}
                   onChange={(e) => setFormData((p: any) => ({ ...p, age: e.target.value }))}
@@ -212,6 +213,7 @@ export default function Signup({ onSignup }: SignupProps) {
                   <option>Female</option>
                   <option>Other</option>
                 </select>
+                </div>
 
                 <div className="flex gap-2">
                   <Input type="number" placeholder="Feet" min={0}
@@ -284,9 +286,9 @@ export default function Signup({ onSignup }: SignupProps) {
                   <div className="flex gap-4">
                     {["Yes", "No"].map((opt) => (
                       <label key={opt}>
-                        <input type="radio" name="smokeAlcohol" value={opt}
-                          checked={formData.smokeAlcohol === opt}
-                          onChange={(e) => setFormData((p: any) => ({ ...p, smokeAlcohol: e.target.value }))} /> {opt}
+                        <input type="radio" name="smoke" value={opt}
+                          checked={formData.smoke === opt}
+                          onChange={(e) => setFormData((p: any) => ({ ...p, smoke: e.target.value }))} /> {opt}
                       </label>
                     ))}
                   </div>

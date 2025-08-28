@@ -7,7 +7,7 @@ const mongoose = require("mongoose");
 const patientRoutes = require("./routes/patient.routes");
 const searchRoutes  = require("./routes/search.routes");
 const userRoutes    = require("./routes/users.routes");
-
+const adminRoutes  = require("./routes/admin.routes"); 
 const app = express();
 
 // --- core middleware
@@ -34,7 +34,7 @@ app.use((req, res, next) => {
 app.use("/patients", patientRoutes); // GET /patients, POST /patients/similar
 app.use("/search",  searchRoutes);   // POST /search/cohort
 app.use("/users",   userRoutes);     // POST /users, POST /users/login, GET /users/me, GET /users
-
+app.use("/admin",   adminRoutes);
 // health
 app.get("/health", (_req, res) => res.json({ ok: true }));
 

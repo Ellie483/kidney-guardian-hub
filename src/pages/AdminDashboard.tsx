@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,10 +7,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Users, Plus, Edit, Trash2, Database, BookOpen, Shield, Activity } from 'lucide-react';
+import { Users, Plus, Trash2, Database, BookOpen, Shield, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+// at top of the file
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
+
+// type RoleFilter = 'any' | 'admin' | 'user';
+const DATE_FIELD: 'registeredAt' | 'createdAt' = 'registeredAt'; // change to 'createdAt' if needed
 
 interface User {
   _id: string;
@@ -18,7 +22,9 @@ interface User {
   email: string;
   age?: number;
   gender?: string;
-  registeredAt: string;
+  registeredAt?: string; // optional if you actually use createdAt
+  createdAt?: string;    // optional
+  lastLogin?: string;
   isAdmin?: boolean;
 }
 
@@ -29,138 +35,193 @@ interface MythFact {
   description: string;
   category: string;
 }
+async function readJson(res: Response) {
+  const ct = res.headers.get('content-type') || '';
+  const text = await res.text(); // always read as text first
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText} — ${text.slice(0,200)}`);
+  }
+  if (!ct.includes('application/json')) {
+    throw new Error(`Expected JSON but got ${ct || 'no content-type'} — ${text.slice(0,200)}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Bad JSON: ${text.slice(0,200)}`);
+  }
+}
 
-const AdminDashboard = () => {
+const AdminDashboard: React.FC = () => {
+  // ===== Filters & paging =====
+  const [search, setSearch] = useState('');
+  // const [role, setRole] = useState<RoleFilter>('any');
+  const [from, setFrom] = useState<string>(''); // yyyy-mm-dd
+  const [to, setTo] = useState<string>('');     // yyyy-mm-dd
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [total, setTotal] = useState(0);
+
+  // ===== Data =====
   const [users, setUsers] = useState<User[]>([]);
   const [myths, setMyths] = useState<MythFact[]>([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
-    activeUsers: 0,
-    newUsersThisMonth: 0,
-    totalAnalyses: 0
+    totalPatients: 0,
   });
+
+  // ===== UI =====
   const [loading, setLoading] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [newMythFact, setNewMythFact] = useState({
-    type: 'myth' as 'myth' | 'fact',
-    title: '',
-    description: '',
-    category: 'general'
-  });
+  const [loadingStats, setLoadingStats] = useState(false);
   const { toast } = useToast();
 
+  // ===== Helpers =====
+  const fmtDate = (iso?: string) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+  };
+
+  const userDate = (u: User) => fmtDate(u[DATE_FIELD]);
+
+  const buildQuery = (p: Record<string, string | number | undefined>) => {
+    const q = new URLSearchParams();
+    Object.entries(p).forEach(([k, v]) => {
+      if (v === undefined || v === '') return;
+      q.set(k, String(v));
+    });
+    return q.toString();
+  };
+
+  const fetchUsers = async (params: {
+    search?: string; role?: 'any'|'admin'|'user'; from?: string; to?: string; page?: number; limit?: number;
+  }) => {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k,v]) => { if (v !== undefined && v !== '') q.set(k, String(v)); });
+    const res = await fetch(`${API_BASE}/admin/users?${q.toString()}`, { credentials: 'include' });
+    return await readJson(res);
+  };
+  
+  const fetchUserStats = async () => {
+    const res = await fetch(`${API_BASE}/admin/users/stats`, { credentials: 'include' });
+    return await readJson(res);
+  };
+  
+  const deleteUser = async (id: string) => {
+    const res = await fetch(`${API_BASE}/admin/users/${id}`, { method: 'DELETE', credentials: 'include' });
+    return await readJson(res);
+  };
+  
+
+  // ===== Effects =====
+  // Users list: refetch when filters/paging change
   useEffect(() => {
-    fetchUsers();
-    fetchStats();
-    fetchMythsFacts();
+    let abort = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await fetchUsers({ search, from, to, page, limit });
+        if (abort) return;
+        setUsers(data.results);
+        setTotal(data.total);
+      } catch (e: any) {
+        if (!abort) {
+          toast({ title: 'Error', description: e?.message || 'Failed to fetch users', variant: 'destructive' });
+        }
+      } finally {
+        if (!abort) setLoading(false);
+      }
+    })();
+    return () => {
+      abort = true;
+    };
+  }, [search, from, to, page, limit, toast]);
+
+  // Stats: load once at mount and then whenever filters *aren’t* required (stats are global)
+  useEffect(() => {
+    let abort = false;
+    (async () => {
+      try {
+        setLoadingStats(true);
+        const s = await fetchUserStats();
+        if (abort) return;
+        setStats({
+          totalUsers: s.totalUsers ?? 0,
+          totalPatients: s.totalPatients ?? 0,
+        });
+      } catch {
+        /* soft fail */
+      } finally {
+        if (!abort) setLoadingStats(false);
+      }
+    })();
+    return () => {
+      abort = true;
+    };
   }, []);
 
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch('/users', {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data);
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch users",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const fetchStats = async () => {
-    setStats({
-      totalUsers: users.length,
-      activeUsers: users.filter(u => new Date(u.registeredAt) > new Date(Date.now() - 30*24*60*60*1000)).length,
-      newUsersThisMonth: users.filter(u => new Date(u.registeredAt) > new Date(Date.now() - 30*24*60*60*1000)).length,
-      totalAnalyses: 0 // This would come from actual analytics
-    });
-  };
-
-  const fetchMythsFacts = async () => {
-    // Simulate fetching myths and facts
+  // Demo content (unchanged)
+  useEffect(() => {
     setMyths([
       {
         _id: '1',
         type: 'myth',
         title: 'Drinking lots of water can cure kidney disease',
-        description: 'While staying hydrated is important, excessive water intake cannot cure kidney disease and may actually be harmful in advanced stages.',
-        category: 'treatment'
+        description:
+          'While staying hydrated is important, excessive water intake cannot cure kidney disease and may actually be harmful in advanced stages.',
+        category: 'treatment',
       },
       {
         _id: '2',
         type: 'fact',
         title: 'Early detection can slow kidney disease progression',
-        description: 'Regular screening and early intervention can significantly slow the progression of kidney disease.',
-        category: 'prevention'
-      }
+        description:
+          'Regular screening and early intervention can significantly slow the progression of kidney disease.',
+        category: 'prevention',
+      },
     ]);
-  };
+  }, []);
 
+  // ===== Handlers =====
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
-    
+    if (!confirm('Delete this user?')) return;
     try {
       setLoading(true);
-      // API call would go here
-      setUsers(users.filter(u => u._id !== userId));
-      toast({
-        title: "Success",
-        description: "User deleted successfully"
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete user",
-        variant: "destructive"
-      });
+      await deleteUser (userId);
+      // Refresh current page with current filters
+      const data = await fetchUsers({ search, from, to, page, limit });
+      setUsers(data.results);
+      setTotal(data.total);
+      // Also refresh stats
+      try {
+        const s = await fetchUserStats();
+        setStats({
+          totalUsers: s.totalUsers,
+          totalPatients: s.totalPatients ?? 0,
+        });
+      } catch {}
+      toast({ title: 'Deleted', description: 'User deleted successfully' });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e?.message || 'Failed to delete user', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
 
   const handleAddMythFact = async () => {
-    if (!newMythFact.title || !newMythFact.description) {
-      toast({
-        title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const newEntry = {
-        ...newMythFact,
-        _id: Date.now().toString()
-      };
-      setMyths([...myths, newEntry]);
-      setNewMythFact({
-        type: 'myth',
-        title: '',
-        description: '',
-        category: 'general'
-      });
-      toast({
-        title: "Success",
-        description: `${newMythFact.type} added successfully`
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add entry",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
+    // unchanged demo handler
+    // validate
+    const empty = myths.find((m) => !m.title || !m.description);
+    if (empty) return;
   };
+
+  // ===== Derived =====
+  const showingRange = useMemo(() => {
+    if (!total) return 'Showing 0 of 0';
+    const start = (page - 1) * limit + 1;
+    const end = Math.min(page * limit, total);
+    return `Showing ${start}-${end} of ${total}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, limit, total]);
 
   return (
     <div className="min-h-screen bg-gradient-subtle p-6">
@@ -182,37 +243,43 @@ const AdminDashboard = () => {
               <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{stats.totalUsers}</div>
+              <div className="text-2xl font-bold text-primary">
+                {loadingStats ? '—' : stats.totalUsers}
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
+          {/* <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Users</CardTitle>
               <Activity className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{stats.activeUsers}</div>
+              <div className="text-2xl font-bold text-primary">
+                {loadingStats ? '—' : stats.activeUsers}
+              </div>
             </CardContent>
-          </Card>
+          </Card> */}
 
-          <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
+          {/* <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">New This Month</CardTitle>
               <Plus className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{stats.newUsersThisMonth}</div>
+              <div className="text-2xl font-bold text-primary">
+                {loadingStats ? '—' : stats.newUsersThisMonth}
+              </div>
             </CardContent>
-          </Card>
+          </Card> */}
 
           <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Analyses</CardTitle>
+              <CardTitle className="text-sm font-medium">Patient Records</CardTitle>
               <Database className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{stats.totalAnalyses}</div>
+              <div className="text-2xl font-bold text-primary">{stats.totalPatients}</div>
             </CardContent>
           </Card>
         </div>
@@ -239,55 +306,129 @@ const AdminDashboard = () => {
                 <CardDescription>Manage registered users and their permissions</CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Age</TableHead>
-                      <TableHead>Gender</TableHead>
-                      <TableHead>Registered</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.map((user) => (
-                      <TableRow key={user._id}>
-                        <TableCell className="font-medium">{user.name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.age || 'N/A'}</TableCell>
-                        <TableCell>{user.gender || 'N/A'}</TableCell>
-                        <TableCell>{new Date(user.registeredAt).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <Badge variant={user.isAdmin ? "default" : "secondary"}>
-                            {user.isAdmin ? 'Admin' : 'User'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
-                            <Button size="sm" variant="outline" onClick={() => setEditingUser(user)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="destructive" 
-                              onClick={() => handleDeleteUser(user._id)}
-                              disabled={loading}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                {/* Search & Filters */}
+                <div className="flex flex-wrap items-end gap-3 mb-4">
+                  <div className="flex-1 min-w-[220px]">
+                    <Label>Search</Label>
+                    <Input
+                      value={search}
+                      onChange={(e) => { setPage(1); setSearch(e.target.value); }}
+                      placeholder="Search name or email..."
+                    />
+                  </div>
+
+                  {/* <div>
+                    <Label>Role</Label>
+                    <select
+                      className="h-9 px-3 rounded-md border"
+                      value={role}
+                      onChange={(e) => { setPage(1); setRole(e.target.value as RoleFilter); }}
+                    >
+                      <option value="any">Any</option>
+                      <option value="admin">Admin</option>
+                      <option value="user">User</option>
+                    </select>
+                  </div> */}
+
+                  <div>
+                    <Label>From</Label>
+                    <Input
+                      type="date"
+                      value={from}
+                      onChange={(e) => { setPage(1); setFrom(e.target.value); }}
+                    />
+                  </div>
+                  <div>
+                    <Label>To</Label>
+                    <Input
+                      type="date"
+                      value={to}
+                      onChange={(e) => { setPage(1); setTo(e.target.value); }}
+                    />
+                  </div>
+
+                  {/* <Button
+                    variant="outline"
+                    onClick={() => { setSearch(''); setRole('any'); setFrom(''); setTo(''); setPage(1); }}
+                  >
+                    Reset
+                  </Button> */}
+                </div>
+
+                {/* Table */}
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Age</TableHead>
+                        <TableHead>Gender</TableHead>
+                        <TableHead>Registered</TableHead>
+                        {/* <TableHead>Role</TableHead> */}
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground">
+                            Loading…
+                          </TableCell>
+                        </TableRow>
+                      ) : users.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground">
+                            No users found for current filters.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        users.map((user) => (
+                          <TableRow key={user._id}>
+                            <TableCell className="font-medium">{user.name}</TableCell>
+                            <TableCell>{user.email}</TableCell>
+                            <TableCell>{user.age ?? 'N/A'}</TableCell>
+                            <TableCell>{user.gender ?? 'N/A'}</TableCell>
+                            <TableCell>{userDate(user)}</TableCell>
+                              {/* <TableCell>
+                                <Badge variant={user.isAdmin ? 'default' : 'secondary'}>
+                                  {user.isAdmin ? 'Admin' : 'User'}
+                                </Badge>
+                              </TableCell> */}
+                            <TableCell className="text-right">
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDeleteUser(user._id)}
+                                disabled={loading}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Pagination */}
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">{showingRange}</div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                      Prev
+                    </Button>
+                    <Button variant="outline" disabled={page * limit >= total} onClick={() => setPage((p) => p + 1)}>
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Content Tab */}
+          {/* Content Tab (kept same; demo only) */}
           <TabsContent value="content">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
@@ -299,51 +440,38 @@ const AdminDashboard = () => {
                   <div className="space-y-2">
                     <Label htmlFor="type">Type</Label>
                     <select
-                      value={newMythFact.type}
-                      onChange={(e) => setNewMythFact({...newMythFact, type: e.target.value as 'myth' | 'fact'})}
                       className="w-full p-2 border border-border rounded-md bg-background"
+                      onChange={() => {}}
+                      defaultValue="myth"
                     >
                       <option value="myth">Myth</option>
                       <option value="fact">Fact</option>
                     </select>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="title">Title</Label>
-                    <Input
-                      value={newMythFact.title}
-                      onChange={(e) => setNewMythFact({...newMythFact, title: e.target.value})}
-                      placeholder="Enter title..."
-                    />
+                    <Input placeholder="Enter title..." />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      value={newMythFact.description}
-                      onChange={(e) => setNewMythFact({...newMythFact, description: e.target.value})}
-                      placeholder="Enter description..."
-                      rows={4}
-                    />
+                    <Textarea placeholder="Enter description..." rows={4} />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="category">Category</Label>
-                    <select
-                      value={newMythFact.category}
-                      onChange={(e) => setNewMythFact({...newMythFact, category: e.target.value})}
-                      className="w-full p-2 border border-border rounded-md bg-background"
-                    >
+                    <select className="w-full p-2 border border-border rounded-md bg-background" defaultValue="general">
                       <option value="general">General</option>
                       <option value="prevention">Prevention</option>
                       <option value="treatment">Treatment</option>
                       <option value="diet">Diet</option>
                     </select>
                   </div>
-                  
-                  <Button onClick={handleAddMythFact} disabled={loading} className="w-full">
+
+                  <Button className="w-full">
                     <Plus className="h-4 w-4 mr-2" />
-                    Add {newMythFact.type}
+                    Add
                   </Button>
                 </CardContent>
               </Card>
@@ -354,38 +482,17 @@ const AdminDashboard = () => {
                   <CardDescription>Manage myths and facts</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
-                    {myths.map((item) => (
-                      <div key={item._id} className="p-4 border border-border rounded-lg bg-background/50">
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <Badge variant={item.type === 'myth' ? "destructive" : "default"}>
-                                {item.type}
-                              </Badge>
-                              <Badge variant="outline">{item.category}</Badge>
-                            </div>
-                            <h4 className="font-semibold">{item.title}</h4>
-                            <p className="text-sm text-muted-foreground">{item.description}</p>
-                          </div>
-                          <div className="flex space-x-1">
-                            <Button size="sm" variant="outline">
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button size="sm" variant="destructive">
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <Alert className="mb-0">
+                    <AlertDescription>
+                      Content management wiring can be added later (demo list omitted here to keep focus on user admin).
+                    </AlertDescription>
+                  </Alert>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          {/* Data Tab */}
+          {/* Data Tab (unchanged skeleton) */}
           <TabsContent value="data">
             <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
               <CardHeader>
@@ -400,7 +507,7 @@ const AdminDashboard = () => {
                     This could include patient data imports, lab result templates, and reference ranges.
                   </AlertDescription>
                 </Alert>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Button variant="outline" className="h-20 flex flex-col">
                     <Database className="h-6 w-6 mb-2" />

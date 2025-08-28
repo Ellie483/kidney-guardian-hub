@@ -16,6 +16,7 @@ const FEATURES_TEMPLATE = [
   { type: "bin", key: "lifestyle.highBP",   w: 1.2 },
   { type: "bin", key: "lifestyle.smokes",   w: 1.2 },
   { type: "cat", key: "gender",             w: 0.4 },
+  { key: 'lifestyle.activity', type: 'cat', w: 1 } 
 ];
 
 // ----------------------- helpers -----------------------
@@ -24,8 +25,8 @@ const toBool = (v) => {
   if (v == null) return undefined;
   if (typeof v === "number") return v !== 0;
   const s = String(v).trim().toLowerCase();
-  if (["1","true","t","yes","y"].includes(s)) return true;
-  if (["0","false","f","no","n"].includes(s)) return false;
+  if (["1", "true", "t", "yes", "y"].includes(s)) return true;
+  if (["0", "false", "f", "no", "n"].includes(s)) return false;
   return undefined;
 };
 
@@ -40,10 +41,26 @@ function stageFromEgfr(egfr) {
   if (egfr >= 60) return "Stage 2";
   if (egfr >= 45) return "Stage 3a";
   if (egfr >= 30) return "Stage 3b";
-  if (egfr >= 15) return "Stage 4";
-  return "Stage 5";
 }
-
+// --- activity getter (top-level helper) ---
+function getActivity(doc) {
+  const d = doc || {};
+  // prefer normalized → raw fallbacks
+  return (
+    (d.lifestyle && (d.lifestyle.activity || d.lifestyle.activityLevel)) ||
+    d.activityLevel ||
+    d.physical_activity_level ||
+    (d.raw && (
+      (d.raw.lifestyle && (d.raw.lifestyle.activity || d.raw.lifestyle.activityLevel)) ||
+      d.raw.physical_activity_level
+    )) ||
+    (d.__raw && ( // if you pass __raw around
+      (d.__raw.lifestyle && (d.__raw.lifestyle.activity || d.__raw.lifestyle.activityLevel)) ||
+      d.__raw.physical_activity_level
+    )) ||
+    null
+  );
+}
 /**
  * Normalize a patient document into unified fields used by UI + Gower.
  * Works for:
@@ -81,6 +98,8 @@ function normalizePatientDoc(p, index = 0) {
     toBool(p?.lifestyle?.smokes) ??
     toBool(p.smoking_status);
 
+  const activity = getActivity(p);
+    
   const vitals = {
     bmi: Number.isFinite(bmi) ? bmi : null,
     egfr: Number.isFinite(egfr) ? egfr : null,
@@ -91,7 +110,8 @@ function normalizePatientDoc(p, index = 0) {
     diabetic: typeof diabetic === "boolean" ? diabetic : null,
     highBP: typeof highBP === "boolean" ? highBP : null,
     smokes: typeof smokes === "boolean" ? smokes : null,
-    activityLevel: activityLevel, 
+    activity,              // for FEATURES_TEMPLATE 'lifestyle.activity'
+    activityLevel: activity, // for UI/pack31 convenience
   };
 
   const stage = p.stage || stageFromEgfr(vitals.egfr);
@@ -244,11 +264,14 @@ exports.getSimilarPatients = async (req, res) => {
     // normalize a "user-like" object into same shape as patient for Gower
     const normUser = {
       age: toNum(user.age) ?? null,
-      gender: (user.gender || "").toString().toLowerCase() || null,
+      gender: (user.gender || "").toLowerCase() || null,
       lifestyle: {
         diabetic: (user.medicalConditions || []).includes("Diabetes"),
-        highBP: (user.medicalConditions || []).includes("Hypertension"),
-        smokes: user.smokeAlcohol === "Yes",
+        highBP:   (user.medicalConditions || []).includes("Hypertension"),
+        smokes:   user.smokeAlcohol === "Yes",
+        activity: (user?.lifestyle?.activity ||
+                   user?.activityLevel ||
+                   user?.physical_activity_level || null)?.toString().toLowerCase()
       },
       vitals: {
         egfr: toNum(user?.vitals?.egfr) ?? null,
@@ -257,6 +280,7 @@ exports.getSimilarPatients = async (req, res) => {
       medicalConditions: user.medicalConditions || [],
       smoke: user.smoke,
     };
+    
 
     // 2) candidate pool
     const hard = buildHardFilterFromUser(normUser);
@@ -308,9 +332,10 @@ exports.getSimilarPatients = async (req, res) => {
     });
 
     const top = scored.slice(0, Math.min(12, Math.max(1, Number(limit) || 12)));
+/** @param {any} p @returns {string|null} */
 
-    // 7) cards for frontend (fully populated)
-    const cards = top.map(({ p, score }) => ({
+     
+     const cards = top.map(({ p, score }) => ({
       _id: p._id,
       name: p.name,
       age: p.age,
@@ -318,13 +343,17 @@ exports.getSimilarPatients = async (req, res) => {
       stage: p.stage,
       diagnosis: p.diagnosis,
       story: p.story,
-      lifestyle: p.lifestyle,
+      lifestyle: {
+        ...p.lifestyle,
+        activity: getActivity(p)   // ensure it’s present inside lifestyle
+      },
+      activityLevel: getActivity(p), // convenient top-level field for UI
       riskFactors: p.riskFactors,
       improvements: p.improvements,
       vitals: p.vitals,
       labFlags: p.labFlags,
       matchScore: score,
-      raw: pack31(p),          
+      raw: pack31(p),
     }));
     
 

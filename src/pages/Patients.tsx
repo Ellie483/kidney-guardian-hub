@@ -64,6 +64,7 @@ type PatientCard = {
     highBP?: boolean; 
     activityLevel?: string | null; 
   };
+  activityLevel?: string | null;   // <-- add this
   riskFactors?: string[];
   improvements?: string[];
   vitals?: { bmi?: number | null; egfr?: number | null; hemoglobin?: number | null };
@@ -71,6 +72,7 @@ type PatientCard = {
   matchScore?: number;
   raw?: any;  
 };
+
 
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -204,7 +206,11 @@ function buildDetails(doc: any): Record<string, any> {
     hypertension_yesno:
       d.hypertension_yesno ??
       (typeof d?.lifestyle?.highBP === "boolean" ? (d.lifestyle.highBP ? 1 : 0) : undefined),
-    physical_activity_level: d.physical_activity_level ?? d?.lifestyle?.activityLevel ?? null,
+      physical_activity_level:
+      d.physical_activity_level ??
+      d?.lifestyle?.activityLevel ??
+      d?.lifestyle?.activity ??                                        // <-- add this
+      null,
     family_history_of_chronic_kidney_disease: d.family_history_of_chronic_kidney_disease,
     body_mass_index_bmi: d.body_mass_index_bmi ?? d?.vitals?.bmi ?? null,
     duration_of_diabetes_mellitus_years: d.duration_of_diabetes_mellitus_years,
@@ -296,8 +302,10 @@ const normalizePatient = (raw: any, idx = 0): PatientCard => {
   const highBP   = asBool(src?.lifestyle?.highBP)   ?? asBool(src.hypertension_yesno);
   const smokes   = asBool(src?.lifestyle?.smokes)   ?? asBool(src.smoking_status);
   const activityLevel =
-    src?.lifestyle?.activityLevel ??
-    (typeof src.physical_activity_level === "string" ? src.physical_activity_level : null);
+  src?.lifestyle?.activityLevel ??
+  src?.lifestyle?.activity ??
+  (typeof src.physical_activity_level === "string" ? src.physical_activity_level : null) ??
+  (typeof fullRaw?.physical_activity_level === "string" ? fullRaw.physical_activity_level : null);
 
   const name  = src.name || src.fullName || `Profile ${idx + 1}`;
   const rawStageSource =
@@ -331,6 +339,7 @@ const normalizePatient = (raw: any, idx = 0): PatientCard => {
     stage,
     diagnosis: diagnosisLabel,        
     lifestyle: { diabetic, highBP, smokes, exercise: undefined, activityLevel },
+    activityLevel, // top-level convenience (for older UIs)
     riskFactors,
     improvements: src.improvements || [],
     vitals: { bmi: bmi ?? null, egfr: egfr ?? null, hemoglobin: hemoglobin ?? null },
@@ -381,7 +390,10 @@ const renderCards = (arr: PatientCard[]) => (
       const vitals = p.vitals || {};
       const previewRisks = (p.riskFactors || []).slice(0, 2);  // Limiting risk factors
       const previewFlags = (p.labFlags || []).slice(0, 1);  // Limiting lab flags
-      const activity = p.lifestyle?.activityLevel;  // Activity level
+      const activity =
+  p.lifestyle?.activityLevel ??
+  (p as any).activityLevel ??             // top-level, if your API sends it
+  (p.lifestyle as any)?.activity ?? null; // if backend used lifestyle.activity
 
       return (
         <Card
@@ -424,13 +436,14 @@ const renderCards = (arr: PatientCard[]) => (
             <div className="mt-2">
               <h4 className="text-sm font-medium mb-2">Lifestyle:</h4>
               <div className="flex flex-wrap gap-1">
-                {activity ? (
-                  <Badge variant="outline" className="text-xs">
-                    Activity: {String(activity).charAt(0).toUpperCase() + String(activity).slice(1)}
-                  </Badge>
-                ) : (
-                  <span className="text-slate-500">No activity data</span>
-                )}
+              {activity ? (
+  <Badge variant="outline" className="text-xs">
+    Activity: {activity[0].toUpperCase() + activity.slice(1)}
+  </Badge>
+) : (
+  <span className="text-slate-500">No data</span>
+)}
+
               </div>
             </div>
 
@@ -573,7 +586,7 @@ const renderCards = (arr: PatientCard[]) => (
         const normalized = arr.map((d, i) => normalizePatient(d, i));
         const enriched = await enrichPatients(normalized);
         if (!canceled) setSimilar(enriched);
-        if (!canceled) setSimilar(normalized);
+        // if (!canceled) setSimilar(normalized);
       } catch (e: any) {
         if (!canceled) setSimError(e.message || "Failed to load similar patients");
       } finally {
@@ -796,34 +809,34 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
         </div>
   
         {tab === "similar" ? (
-          <Card className="mb-8 border-0 shadow-md bg-white/70 backdrop-blur-sm ring-1 ring-emerald-100">
-            <CardHeader>
-              <CardDescription>Explore similar profiles and get early awareness.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {simLoading && (
-  <div className="flex items-center gap-2">
-    <Loader className="animate-spin h-5 w-5 text-emerald-600" /> {/* Spinner */}
-    <p className="text-muted-foreground">Finding matches…</p>
-  </div>
-)}
-              {simError && <span className="text-sm text-destructive">{simError}</span>}
-              {!simLoading && !simError && similar.length > 0 && (
-                <>
-                  {renderCards(similar)}
-                  {others.length > 0 && (
-                    <>
-                      <h3 className="text-lg font-semibold mt-10 mb-3">Other patients</h3>
-                      {renderCards(others)}
-                    </>
-                  )}
-                </>
-              )}
-              {!simLoading && !simError && similar.length === 0 && (
-                <p className="text-sm text-muted-foreground">No similar patients to show yet.</p>
-              )}
-            </CardContent>
-          </Card>
+  <Card className="mb-8 border-0 shadow-md bg-white/70 backdrop-blur-sm ring-1 ring-emerald-100">
+    <CardHeader>
+      <CardDescription>Explore similar profiles and get early awareness.</CardDescription>
+    </CardHeader>
+    <CardContent>
+      {simLoading && (
+        <div className="flex items-center gap-2">
+          <Loader className="animate-spin h-5 w-5 text-emerald-600" /> {/* Spinner */}
+          <p className="text-muted-foreground">Finding matches…</p>
+        </div>
+      )}
+      {simError && <span className="text-sm text-destructive">{simError}</span>}
+      {!simLoading && !simError && similar.length > 0 && (
+        <>
+          {renderCards(similar)}
+          {others.length > 0 && (
+            <>
+              <h3 className="text-lg font-semibold mt-10 mb-3">Other patients</h3>
+              {renderCards(others)}
+            </>
+          )}
+        </>
+      )}
+      {!simLoading && !simError && similar.length === 0 && (
+        <p className="text-sm text-muted-foreground">No similar patients to show yet.</p>
+      )}
+    </CardContent>
+  </Card>
         ) : (
           <>
             <Card className="mb-6 border-0 shadow-md bg-white/70 backdrop-blur-sm ring-1 ring-emerald-100">

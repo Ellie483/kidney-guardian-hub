@@ -2,6 +2,9 @@ const Patient = require("../models/patient.model");
 const DecisionTree = require('decision-tree');
 const cacheService = require('../services/cache.service');
 
+const fs = require('fs').promises;
+const path = require('path');
+
 // ⚡ Attributes (features used in decision tree)
 const features = [
   'age_of_the_patient',
@@ -46,6 +49,7 @@ exports.predictPatientCondition = async (req, res) => {
       // 🚨 RECREATE the DecisionTree instance from JSON
       // This is FAST - no training involved, just structure rebuilding
       dtInstance = new DecisionTree(cachedModelJson);
+      await writeDTToFile(dtInstance, 'cached-model-debug.json');
     } else {
       // 2. Train new model if no cache exists
       console.log('🔄 Training new model...');
@@ -66,7 +70,7 @@ exports.predictPatientCondition = async (req, res) => {
       }
 
       // Train the model (SLOW - processes 80% records)
-      dtInstance = new DecisionTree(trainingData, class_name, features);
+      dtInstance = new DecisionTree(trainingData, class_name, features,{minSamples: 10});
       
       // 🚨 Convert to JSON for Redis storage
       const modelJson = dtInstance.toJSON();
@@ -117,3 +121,34 @@ exports.getCacheStatus = async (req, res) => {
     res.status(500).json({ error: 'Failed to get cache status' });
   }
 };
+
+// Helper function to write DT instance to file
+async function writeDTToFile(dtInstance, filename = 'decision-tree-debug.json') {
+  try {
+    const debugData = {
+      timestamp: new Date().toISOString(),
+      modelType: dtInstance.constructor.name,
+      features: dtInstance.features,
+      target: dtInstance.target,
+      modelStructure: dtInstance.model,
+      // Add any other properties you want to inspect
+      hasPredictMethod: typeof dtInstance.predict === 'function',
+      hasToJSONMethod: typeof dtInstance.toJSON === 'function'
+    };
+
+    const filePath = path.join(__dirname, '..', 'debug', filename);
+    
+    // Create debug directory if it doesn't exist
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    
+    // Write to file
+    await fs.writeFile(filePath, JSON.stringify(debugData, null, 2));
+    
+    console.log(`✅ Decision Tree debug data written to: ${filePath}`);
+    return filePath;
+    
+  } catch (error) {
+    console.error('❌ Error writing DT to file:', error.message);
+    return null;
+  }
+}

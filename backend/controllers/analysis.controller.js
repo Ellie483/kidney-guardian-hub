@@ -532,13 +532,6 @@ const getAppetiteAgeTarget = async (req, res) => {
   }
 };
 
-
-
-
-
-
-
-
 module.exports = {
   getAgeGroupDistribution,
   getDiabetesRelatedCKD,

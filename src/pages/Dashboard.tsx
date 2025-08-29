@@ -1,3 +1,4 @@
+// src/pages/Dashboard.tsx
 import React, { useEffect, useState } from "react";
 import {
   Card,
@@ -21,6 +22,108 @@ import {
 import { Link } from "react-router-dom";
 import heroImage from "@/assets/kidney-hero.jpg";
 
+// BlogFeed component
+interface Article {
+  id: string;
+  title: string;
+  summary: string;
+  url: string;
+}
+
+function BlogFeed() {
+  const [articles, setArticles] = useState<Article[]>([]);
+
+  useEffect(() => {
+    const mockArticles: Article[] = [
+      {
+        id: "1",
+        title: "Kidney Transplant Success Stories",
+        summary: "Learn about patients who successfully underwent kidney transplants and improved their quality of life.",
+        url: "https://www.hopkinsmedicine.org/health/treatment-tests-and-therapies/kidney-transplant/patient-story-kidney-transplant-neil"
+      },
+      {
+        id: "2",
+        title: "Preventing Kidney Disease with Lifestyle Changes",
+        summary: "Simple steps you can take daily to reduce your risk of chronic kidney disease.",
+        url: "https://www.kidney.org/7-golden-rules-kidney-disease-prevention"
+      },
+      {
+        id: "3",
+        title: "Understanding Your Kidney Function Tests",
+        summary: "A guide to understanding creatinine, eGFR, and other common kidney tests.",
+        url: "https://www.medparkhospital.com/en-US/disease-and-treatment/kidney-function-tests"
+      }
+    ];
+    setArticles(mockArticles);
+  }, []);
+
+  return (
+    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {articles.map((article) => (
+        <Card key={article.id} className="hover:shadow-lg transition-shadow border-0 rounded-xl overflow-hidden">
+          <CardHeader className="pb-0">
+            <CardTitle className="text-sm md:text-base">{article.title}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <p className="text-sm text-foreground mb-3">{article.summary}</p>
+            <a
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline text-sm font-medium"
+            >
+              Read more →
+            </a>
+          </CardContent>
+        </Card>
+
+      ))}
+    </div>
+  );
+}
+
+// Quiz embedded inside dashboard
+interface Question {
+  id: number;
+  text: string;
+  options: string[];
+  multiple?: boolean;
+}
+
+const quizQuestions: Question[] = [
+  {
+    id: 1,
+    text: "Are you answering these questions for yourself or for a loved one?",
+    options: ["For myself", "For a loved one"]
+  },
+  {
+    id: 2,
+    text: "Have you been told by your doctor that you have any of the following conditions?",
+    options: ["Diabetes", "Prediabetes", "High blood pressure", "Heart disease or heart failure", "None of these apply to me"],
+    multiple: true
+  },
+  {
+    id: 3,
+    text: "Has anyone in your family had a kidney transplant, had kidney failure, or been on dialysis?",
+    options: ["Yes", "No", "I don't know"]
+  },
+  {
+    id: 4,
+    text: "How would you describe your weight?",
+    options: ["Underweight", "Normal", "Overweight", "Obese/Very overweight", "I don't know"]
+  },
+  {
+    id: 5,
+    text: "How would you describe your gender?",
+    options: ["Female", "Male", "Nonbinary", "I prefer not to answer"]
+  },
+  {
+    id: 6,
+    text: "What is your age?",
+    options: ["35 or younger", "36 - 50", "51 - 64", "65 or older"]
+  }
+];
+
 interface DashboardProps {
   user: {
     name: string;
@@ -40,59 +143,30 @@ interface DashboardProps {
   };
 }
 
-// Mock patient data
-const mockPatients = [
-  {
-    id: 1,
-    name: "Sarah M.",
-    age: 45,
-    stage: "Stage 2",
-    story: "Managed to improve her kidney function through lifestyle changes.",
-    medicalConditions: ["Diabetes"],
-    matchReasons: ["Also has diabetes", "Regular exerciser"]
-  },
-  {
-    id: 2,
-    name: "James R.",
-    age: 52,
-    stage: "Stage 3",
-    story: "Successfully quit smoking and lowered his blood pressure.",
-    medicalConditions: ["Hypertension"],
-    matchReasons: ["Former smoker", "Managing blood pressure"]
-  },
-  {
-    id: 3,
-    name: "Maria L.",
-    age: 38,
-    stage: "Stage 1",
-    story: "Early detection helped her maintain healthy kidneys.",
-    medicalConditions: ["Family history"],
-    matchReasons: ["Family history", "Proactive about health"]
-  }
-];
-
 export default function Dashboard({ user }: DashboardProps) {
   const [healthScore, setHealthScore] = useState(0);
+
+  // Quiz state
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [answers, setAnswers] = useState<(string | string[])[]>([]);
+  const [showQuizResult, setShowQuizResult] = useState(false);
 
   // Recalculate health score whenever user changes
   useEffect(() => {
     const conditionWeights: Record<string, number> = {
       Diabetes: 2,
       Hypertension: 1,
-      CKD: 3,
       "Family history": 1
     };
-
     const medicalRisk = (user.medicalConditions || []).reduce(
       (sum, cond) => sum + (conditionWeights[cond] || 1),
       0
     );
     const smokeRisk = user.smoke === "Yes" ? 2 : 0;
     const familyHistoryRisk = user.familyHistory === "Yes" ? 1 : 0;
-
     const activityBonus =
       user.physicalActivity === "High" ? 4 :
-      user.physicalActivity === "Medium" ? 2 : 0;
+        user.physicalActivity === "Medium" ? 2 : 0;
 
     const score = Math.max(
       0,
@@ -101,31 +175,74 @@ export default function Dashboard({ user }: DashboardProps) {
     setHealthScore(score);
   }, [user]);
 
-  // Personalized tips
-  const getPersonalizedTips = () => {
+  // Prescriptive / Personalized Tips
+  const getPrescriptiveTips = () => {
     const tips: string[] = [];
-    if (user.smoke === "Yes") tips.push("Consider reducing smoking/alcohol consumption for kidney health.");
-    if (user.medicalConditions?.includes("Diabetes")) tips.push("Monitor your blood sugar levels regularly.");
-    if (user.medicalConditions?.includes("Hypertension")) tips.push("Keep your blood pressure under control.");
-    if (!user.age) tips.push("Stay physically active to maintain kidney health.");
-    if (user.familyHistory === "Yes") tips.push("Regular check-ups are important due to family history.");
-    if (user.physicalActivity !== "High") tips.push("Increase physical activity for better health.");
-    tips.push("Drink 8-10 glasses of water daily.");
-    tips.push("Limit processed foods and excess sodium.");
-    return tips.slice(0, 4);
-  };
-  const personalizedTips = getPersonalizedTips();
+    if (user.smoke === "Yes") tips.push("🚭 Reduce or quit smoking to lower kidney risk.");
+    if (user.physicalActivity === "Low") tips.push("🏃 Increase physical activity to at least 150 mins/week.");
+    if (user.physicalActivity === "Medium") tips.push("⚡ Maintain current activity and try small increases.");
+    if (user.familyHistory === "Yes") tips.push("🩺 Schedule regular kidney check-ups due to family history.");
 
-  // Similar patients
-  const getSimilarPatients = () => {
-    return mockPatients
-      .filter(patient => (user.medicalConditions || []).some(cond => (patient.medicalConditions || []).includes(cond)))
-      .slice(0, 2);
+    tips.push("💦 Drink 8–10 glasses of water daily.");
+    tips.push("🍎 Limit processed foods and excess sodium.");
+    return tips.slice(0, 6);
   };
-  const similarPatients = getSimilarPatients();
 
-  // Risk factors alert
-  const riskFactors = (user.medicalConditions?.length || 0) + (user.smoke === "Yes" ? 1 : 0) + (user.familyHistory === "Yes" ? 1 : 0);
+  const prescriptiveTips = getPrescriptiveTips();
+  const riskFactors =
+    (user.medicalConditions?.length || 0) +
+    (user.smoke === "Yes" ? 1 : 0) +
+    (user.familyHistory === "Yes" ? 1 : 0);
+
+  // Quiz handlers
+  const handleAnswer = (option: string) => {
+    const question = quizQuestions[currentQuestion];
+    if (question.multiple) {
+      const prev = (answers[currentQuestion] || []) as string[];
+      const newSelection = prev.includes(option) ? prev.filter((o) => o !== option) : [...prev, option];
+      const newAnswers = [...answers];
+      newAnswers[currentQuestion] = newSelection;
+      setAnswers(newAnswers);
+    } else {
+      const newAnswers = [...answers];
+      newAnswers[currentQuestion] = option;
+      setAnswers(newAnswers);
+    }
+  };
+
+  const nextQuestion = () => {
+    if (currentQuestion < quizQuestions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1);
+    } else {
+      setShowQuizResult(true);
+    }
+  };
+
+  const calculateQuizRisk = () => {
+    let score = 0;
+    const conditionAns = answers[1] as string[];
+    if (conditionAns) {
+      if (conditionAns.includes("Diabetes")) score += 2;
+      if (conditionAns.includes("Prediabetes")) score += 1;
+      if (conditionAns.includes("High blood pressure")) score += 2;
+      if (conditionAns.includes("Heart disease or heart failure")) score += 2;
+    }
+    if (answers[2] === "Yes") score += 2;
+    const weight = answers[3] as string;
+    if (weight === "Overweight") score += 1;
+    if (weight === "Obese/Very overweight") score += 2;
+    const age = answers[5] as string;
+    if (age === "51 - 64") score += 1;
+    if (age === "65 or older") score += 2;
+    return score;
+  };
+
+  const getQuizRiskLevel = () => {
+    const score = calculateQuizRisk();
+    if (score >= 6) return "High Risk";
+    if (score >= 3) return "Moderate Risk";
+    return "Low Risk";
+  };
 
   return (
     <div className="min-h-screen bg-gradient-dashboard">
@@ -213,22 +330,23 @@ export default function Dashboard({ user }: DashboardProps) {
             </CardContent>
           </Card>
 
+        
           {/* Personalized Tips */}
           <Card className="lg:col-span-2 shadow-card border-0 animate-slide-up">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Droplets className="h-5 w-5 text-blue-500" />
-                <span>Your Personalized Tips</span>
+                <span>Prescriptive Recommendations</span>
               </CardTitle>
-              <CardDescription>Recommendations based on your lifestyle</CardDescription>
+              <CardDescription>Actionable tips based on your lifestyle & lab data</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {personalizedTips.map((tip, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 bg-muted/50 rounded-lg">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {prescriptiveTips.map((tip, index) => (
+                  <div key={index} className="flex items-start space-x-3 p-4 bg-muted/50 rounded-xl hover:bg-muted/80 transition-colors">
                     <div className="flex-shrink-0">
-                      <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center">
-                        <span className="text-xs font-bold text-primary">{index + 1}</span>
+                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-bold text-primary">{index + 1}</span>
                       </div>
                     </div>
                     <p className="text-sm text-foreground">{tip}</p>
@@ -238,37 +356,6 @@ export default function Dashboard({ user }: DashboardProps) {
             </CardContent>
           </Card>
 
-          {/* Similar Patients */}
-          <Card className="lg:col-span-1 shadow-card border-0 animate-slide-up">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Users className="h-5 w-5 text-secondary" />
-                <span>Similar Journeys</span>
-              </CardTitle>
-              <CardDescription>Patients with similar profiles</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {similarPatients.map(patient => (
-                  <div key={patient.id} className="p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium">{patient.name}</span>
-                      <Badge variant="outline" className="text-xs">{patient.stage}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-2">{patient.story}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {patient.matchReasons.slice(0, 2).map((reason, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-xs">{reason}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                <Link to="/patients">
-                  <Button variant="outline" size="sm" className="w-full">Meet More Patients</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Risk Factors Alert */}
@@ -287,6 +374,63 @@ export default function Dashboard({ user }: DashboardProps) {
             </CardContent>
           </Card>
         )}
+
+        {/* Kidney Health Blog & Articles */}
+        <div className="mt-8">
+          <h2 className="text-xl font-bold mb-4">Kidney Health News & Articles</h2>
+          <BlogFeed />
+        </div>
+
+
+        {/* Embedded Kidney Health Quiz */}
+        <div className="mt-8">
+          <Card className="shadow-card border-0 hover:shadow-lg transition-shadow p-4">
+            <CardHeader>
+              <CardTitle className="text-xl">Take the Kidney Health Quiz</CardTitle>
+              <CardDescription>Answer a few simple questions to find out if you are at risk for kidney disease.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!showQuizResult ? (
+                <>
+                  <p className="mb-4 font-medium">{quizQuestions[currentQuestion].text}</p>
+                  <div className="flex flex-col space-y-2">
+                    {quizQuestions[currentQuestion].options.map((opt) => {
+                      const selected = quizQuestions[currentQuestion].multiple
+                        ? ((answers[currentQuestion] || []) as string[]).includes(opt)
+                        : answers[currentQuestion] === opt;
+                      return (
+                        <Button
+                          key={opt}
+                          variant={selected ? "default" : "outline"}
+                          onClick={() => handleAnswer(opt)}
+                        >
+                          {opt}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4">
+                    <Button onClick={nextQuestion} disabled={!answers[currentQuestion]?.length}>
+                      {currentQuestion < quizQuestions.length - 1 ? "Next" : "Submit"}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <p className="font-medium text-lg mb-2">Your Kidney Health Risk Level:</p>
+                  <Badge variant={getQuizRiskLevel() === "High Risk" ? "destructive" : getQuizRiskLevel() === "Moderate Risk" ? "secondary" : "default"}>
+                    {getQuizRiskLevel()}
+                  </Badge>
+                  <div className="mt-4">
+                    <Button onClick={() => { setShowQuizResult(false); setCurrentQuestion(0); setAnswers([]); }}>
+                      Retake Quiz
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

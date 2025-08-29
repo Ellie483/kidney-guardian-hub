@@ -1,3 +1,4 @@
+// vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
@@ -7,10 +8,9 @@ export default defineConfig({
     host: "::",
     port: 8080,
     proxy: {
-      "/api": {
+      "^/(patients|search|users|auth)": {
         target: "http://localhost:5000",
         changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api/, ""), // so /api/patients -> /patients
       },
     },
   },

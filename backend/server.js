@@ -7,6 +7,7 @@ require('./config/redis'); // Import Redis config to initialize connection
 // Import your routes
 const patientRoutes = require("./routes/patient.routes");
 const labRoutes = require("./routes/lab.route");
+const analysisRoutes = require("./routes/analysis.routes");
 const searchRoutes  = require("./routes/search.routes");
 const userRoutes    = require("./routes/users.routes");
 const adminRoutes  = require("./routes/admin.routes"); 
@@ -75,10 +76,14 @@ app.get("/redis-health", async (_req, res) => {
     });
   }
 });
+app.use("/analysis", analysisRoutes);
 
+/* ---------- db connect ---------- */
+// mongodb+srv://lynnkhant:dfXOCnB2dZZ9cGmX@cluster0.wqyif61.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+const mongoUri =
+  "mongodb+srv://lynnkhant:dfXOCnB2dZZ9cGmX@cluster0.wqyif61.mongodb.net/Kidney?retryWrites=true&w=majority&appName=Cluster0";
 
 // DB
-const mongoUri = "mongodb+srv://hannithaw4723:iZxgDpAb0JBz368N@cluster0.wqyif61.mongodb.net/Kidney?retryWrites=true&w=majority&appName=Cluster0";
 mongoose
   .connect(mongoUri)
   .then(() => {

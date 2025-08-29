@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
-const cors = require("cors");
 require('./config/redis'); // Import Redis config to initialize connection
 
 // Import your routes
@@ -12,7 +11,6 @@ const searchRoutes  = require("./routes/search.routes");
 const userRoutes    = require("./routes/users.routes");
 const adminRoutes  = require("./routes/admin.routes"); 
 const app = express();
-const PORT = 5000;
 
 /* ---------- middleware ---------- */
 app.use(cors({

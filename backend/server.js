@@ -5,6 +5,7 @@ const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
 
 const patientRoutes = require("./routes/patient.routes");
+const analysisRoutes = require("./routes/analysis.routes");
 const searchRoutes  = require("./routes/search.routes");
 const userRoutes    = require("./routes/users.routes");
 const adminRoutes  = require("./routes/admin.routes"); 
@@ -40,10 +41,14 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`✅ Server on http://localhost:${PORT}`));
+app.use("/analysis", analysisRoutes);
 
+/* ---------- db connect ---------- */
+// mongodb+srv://lynnkhant:dfXOCnB2dZZ9cGmX@cluster0.wqyif61.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+const mongoUri =
+  "mongodb+srv://lynnkhant:dfXOCnB2dZZ9cGmX@cluster0.wqyif61.mongodb.net/Kidney?retryWrites=true&w=majority&appName=Cluster0";
 
 // DB
-const mongoUri = "mongodb+srv://hannithaw4723:iZxgDpAb0JBz368N@cluster0.wqyif61.mongodb.net/Kidney?retryWrites=true&w=majority&appName=Cluster0";
 mongoose
   .connect(mongoUri)
   .then(() => {

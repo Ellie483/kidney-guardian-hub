@@ -189,11 +189,11 @@ export default function LabAnalysis() {
 
   const analyzeResults = async () => {
     // if(!labResults.serum_creatinine_mgdl) {
-    if ( !labResults.age_of_the_patient || !labResults.body_mass_index_bmi || !labResults.blood_pressure_mmhg
-      || !labResults.smoking_status || !labResults.physical_activity_level || !labResults.family_history_of_chronic_kidney_disease
-      || !labResults.duration_of_diabetes_mellitus_years || !labResults.duration_of_hypertension_years || !labResults.coronary_artery_disease_yesno 
-      || !labResults.appetite_goodpoor || !labResults.serum_creatinine_mgdl || !labResults.estimated_glomerular_filtration_rate_egfr
-      || !labResults.blood_urea_mgdl || !labResults.sodium_level_meql || !labResults.potassium_level_meql
+    if ( !labResults.age_of_the_patient //|| !labResults.body_mass_index_bmi || !labResults.blood_pressure_mmhg
+      // || !labResults.smoking_status || !labResults.physical_activity_level || !labResults.family_history_of_chronic_kidney_disease
+      // || !labResults.duration_of_diabetes_mellitus_years || !labResults.duration_of_hypertension_years || !labResults.coronary_artery_disease_yesno 
+      // || !labResults.appetite_goodpoor || !labResults.serum_creatinine_mgdl || !labResults.estimated_glomerular_filtration_rate_egfr
+      // || !labResults.blood_urea_mgdl || !labResults.sodium_level_meql || !labResults.potassium_level_meql
      ) {
       toast.error("Please fill in all required fields");
       return;

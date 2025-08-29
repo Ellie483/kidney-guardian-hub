@@ -61,16 +61,17 @@ exports.predictPatientCondition = async (req, res) => {
       const trainingData = await Patient.find()
         .limit(trainCount)
         .select(
-          'age_of_the_patient smoking_status physical_activity_level family_history_of_chronic_kidney_disease body_mass_index_bmi duration_of_diabetes_mellitus_years duration_of_hypertension_years coronary_artery_disease_yesno serum_creatinine_mgdl estimated_glomerular_filtration_rate_egfr blood_urea_mgdl sodium_level_meql potassium_level_meql random_blood_glucose_level_mgdl specific_gravity_of_urine red_blood_cells_in_urine pus_cells_in_urine bacteria_in_urine blood_pressure_mmhg appetite_goodpoor target'
+          ' serum_creatinine_mgdl estimated_glomerular_filtration_rate_egfr blood_urea_mgdl sodium_level_meql target'
         )
         .lean(); // plain JS objects (better for ML)
+        console.log("Data extraction finished.")
 
       if (trainingData.length === 0) {
         return res.status(400).json({ error: 'No training data available.' });
       }
 
       // Train the model (SLOW - processes 80% records)
-      dtInstance = new DecisionTree(trainingData, class_name, features,{minSamples: 10});
+      dtInstance = new DecisionTree(trainingData, class_name, features);
       
       // 🚨 Convert to JSON for Redis storage
       const modelJson = dtInstance.toJSON();

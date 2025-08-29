@@ -15,10 +15,14 @@ export const Navbar = ({ isAuthenticated = false, onLogout }: NavbarProps) => {
 
   const navItems = [
     { to: "/", label: "Home" },
-    { to: "/patients", label: "Meet the Patients" },
+    { to: "/patients", label: "Health Profiles" },
     { to: "/awareness", label: "Did You Know?" },
     { to: "/games", label: "Play & Learn" },
     { to: "/analysis", label: "Lab Analysis" },
+  ];
+
+  const userNavItems = [
+    { to: "/profile", label: "Profile" },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -39,6 +43,21 @@ export const Navbar = ({ isAuthenticated = false, onLogout }: NavbarProps) => {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
             {isAuthenticated && navItems.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={cn(
+                  "text-sm font-medium transition-colors hover:text-primary px-3 py-2 rounded-md",
+                  isActive(item.to)
+                    ? "text-primary bg-primary/10"
+                    : "text-muted-foreground"
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+            
+            {isAuthenticated && userNavItems.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
@@ -91,7 +110,7 @@ export const Navbar = ({ isAuthenticated = false, onLogout }: NavbarProps) => {
         {isOpen && (
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-card border-t border-border">
-              {isAuthenticated && navItems.map((item) => (
+              {isAuthenticated && [...navItems, ...userNavItems].map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}

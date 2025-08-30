@@ -159,6 +159,11 @@ export default function Dashboard({ user }: DashboardProps) {
   const [answers, setAnswers] = useState<(string | string[])[]>([]);
   const [showQuizResult, setShowQuizResult] = useState(false);
 
+  // CKD dashboard data
+  const [ckdSummary, setCkdSummary] = useState<any>(null);
+  const [topRiskFactor, setTopRiskFactor] = useState<any>(null);
+  const [severeCkdPct, setSevereCkdPct] = useState<number | null>(null);
+
   // Recalculate health score whenever user changes
   useEffect(() => {
     // Get user data with defaults
@@ -215,7 +220,34 @@ export default function Dashboard({ user }: DashboardProps) {
     setHealthScore(Math.round(score));
   }, [user]);
 
-  
+
+  // Fetch CKD dashboard data
+  useEffect(() => {
+    fetch("http://localhost:5000/analysis/summary")
+      .then(res => res.json())
+      .then(data => {
+        console.log("Summary:", data);
+        setCkdSummary(data);
+      })
+      .catch(err => console.error("Summary error:", err));
+
+    fetch("http://localhost:5000/analysis/highest-factor")
+      .then(res => res.json())
+      .then(data => {
+        console.log("Highest factor:", data);
+        setTopRiskFactor(data[0]);
+      })
+      .catch(err => console.error("Highest factor error:", err));
+
+    fetch("http://localhost:5000/analysis/severe-ckd-percentage")
+      .then(res => res.json())
+      .then(data => {
+        console.log("Severe CKD:", data);
+        setSevereCkdPct(data.percentage);
+      })
+      .catch(err => console.error("Severe CKD error:", err));
+  }, []);
+
 
   // Prescriptive / Personalized Tips
   const getPrescriptiveTips = () => {
@@ -373,6 +405,9 @@ export default function Dashboard({ user }: DashboardProps) {
           </Card>
 
 
+
+
+
           {/* Personalized Tips */}
           <Card className="lg:col-span-2 shadow-card border-0 animate-slide-up">
             <CardHeader>
@@ -483,10 +518,58 @@ export default function Dashboard({ user }: DashboardProps) {
             </CardContent>
           </Card>
         </div>
+
+        <h2 className="text-2xl font-semibold mb-6 mt-8">CKD Insights</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Peak CKD Age Group */}
+          <Card className="shadow-card border-0 p-6 flex flex-col justify-between hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <CardTitle>Peak CKD Age Group</CardTitle>
+              <CardDescription>
+                Most CKD patients fall into this age range
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="mt-4">
+              <p className="text-2xl font-bold text-primary">{ckdSummary?.peak_age_group || "Loading..."}</p>
+              <p className="text-sm text-gray-500">
+                Likely caused by {ckdSummary?.top_cause_key?.replace(/_/g, " ") || "..."}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Top CKD Risk Factor */}
+          <Card className="shadow-card border-0 p-6 flex flex-col justify-between hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <CardTitle>Top CKD Risk Factor</CardTitle>
+              <CardDescription>
+                Most prevalent factor among CKD patients
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="mt-4">
+              <p className="text-2xl font-bold text-primary">{topRiskFactor?.factor || "Loading..."}</p>
+              <p className="text-sm text-gray-500">
+                Affects {topRiskFactor?.percentage || "..."}% of CKD patients
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Severe CKD Cases */}
+          <Card className="shadow-card border-0 p-6 flex flex-col justify-between hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <CardTitle>Severe CKD Cases</CardTitle>
+              <CardDescription>
+                Percentage of CKD patients with severe disease
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="mt-4">
+              <p className="text-2xl font-bold text-red-500">{severeCkdPct ?? "..."}%</p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
 
-  
+
 }
 

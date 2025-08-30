@@ -443,7 +443,7 @@ export default function Dashboard({ user }: DashboardProps) {
               <div className="flex items-center space-x-3">
                 <AlertTriangle className="h-6 w-6 text-warning" />
                 <div>
-                  <h4 className="font-medium text-warning-foreground">Multiple Risk Factors Detected</h4>
+                  <h4 className="font-medium text-orange-800">Multiple Risk Factors Detected</h4>
                   <p className="text-sm text-muted-foreground">
                     You have {riskFactors} risk factors. Consider consulting with a healthcare provider for personalized advice.
                   </p>
@@ -507,107 +507,114 @@ export default function Dashboard({ user }: DashboardProps) {
 
 
         {/* Embedded Kidney Health Quiz */}
-<div className="mt-10">
-  <Card className="relative border-2 border-primary/30 shadow-lg rounded-2xl overflow-hidden bg-gradient-to-br from-primary/10 via-background to-secondary/10 animate-fade-in">
-    {/* Decorative top banner */}
-    <div className=" w-full bg-gradient-to-r from-primary via-pink-400 to-secondary animate-pulse" />
+        <div className="mt-10">
+          <Card className="relative border-2 border-primary/30 shadow-lg rounded-2xl overflow-hidden bg-gradient-to-br from-primary/10 via-background to-secondary/10 animate-fade-in">
+            {/* Decorative top banner */}
+            <div className="w-full bg-gradient-to-r from-primary via-pink-400 to-secondary animate-pulse" />
 
-    <CardHeader className="text-center">
-      <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center space-x-2">
-        <Gamepad2 className="h-6 w-6 text-secondary" />
-        <span>Interactive Kidney Health Quiz</span>
-      </CardTitle>
-      <CardDescription className="mt-2 text-muted-foreground">
-        Answer simple questions to discover your kidney risk level
-      </CardDescription>
-    </CardHeader>
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center space-x-2">
+                <Gamepad2 className="h-6 w-6 text-secondary" />
+                <span>Interactive Kidney Health Quiz</span>
+              </CardTitle>
+              <CardDescription className="mt-2 text-muted-foreground">
+                Answer simple questions to discover your kidney risk level
+              </CardDescription>
+            </CardHeader>
 
-    <CardContent className="p-6">
-      {!showQuizResult ? (
-        <>
-          {/* Progress Bar */}
-          <div className="mb-4">
-            <Progress
-              value={((currentQuestion + 1) / quizQuestions.length) * 100}
-              className="h-2 rounded-full bg-muted"
-            />
-            <p className="text-xs text-center mt-1 text-muted-foreground">
-              Question {currentQuestion + 1} of {quizQuestions.length}
-            </p>
-          </div>
+            <CardContent className="p-6">
+              {!showQuizResult ? (
+                <>
+                  {/* Progress Bar */}
+                  <div className="mb-4">
+                    <Progress
+                      value={((currentQuestion + 1) / quizQuestions.length) * 100}
+                      className="h-2 rounded-full bg-muted"
+                    />
+                    <p className="text-xs text-center mt-1 text-muted-foreground">
+                      Question {currentQuestion + 1} of {quizQuestions.length}
+                    </p>
+                  </div>
 
-          {/* Question */}
-          <p className="mb-4 text-lg font-medium text-foreground">
-            {quizQuestions[currentQuestion].text}
-          </p>
+                  {/* Question */}
+                  <p className="mb-4 text-lg font-medium text-foreground">
+                    {quizQuestions[currentQuestion].text}
+                  </p>
 
-          {/* Options */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {quizQuestions[currentQuestion].options.map((opt) => {
-              const selected = quizQuestions[currentQuestion].multiple
-                ? ((answers[currentQuestion] || []) as string[]).includes(opt)
-                : answers[currentQuestion] === opt;
-              return (
-                <Button
-                  key={opt}
-                  variant={selected ? "default" : "outline"}
-                  className={`h-12 text-sm justify-center rounded-xl transition-all duration-200 ${
-                    selected ? "ring-2 ring-primary shadow-md" : "hover:bg-primary/5"
-                  }`}
-                  onClick={() => handleAnswer(opt)}
-                >
-                  {opt}
-                </Button>
-              );
-            })}
-          </div>
+                  {/* Options */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {quizQuestions[currentQuestion].options.map((opt) => {
+                      const selected = quizQuestions[currentQuestion].multiple
+                        ? ((answers[currentQuestion] || []) as string[]).includes(opt)
+                        : answers[currentQuestion] === opt;
 
-          {/* Next Button */}
-          <div className="mt-6 text-center">
-            <Button
-              size="lg"
-              className="rounded-xl shadow-md px-8"
-              onClick={nextQuestion}
-              disabled={!answers[currentQuestion]?.length}
-            >
-              {currentQuestion < quizQuestions.length - 1 ? "Next →" : "Submit"}
-            </Button>
-          </div>
-        </>
-      ) : (
-        <div className="text-center py-6">
-          <p className="font-semibold text-lg mb-3">Your Kidney Health Risk Level:</p>
-          <Badge
-            variant={
-              getQuizRiskLevel() === "High Risk"
-                ? "destructive"
-                : getQuizRiskLevel() === "Moderate Risk"
-                ? "secondary"
-                : "default"
-            }
-            className="px-4 py-2 text-base"
-          >
-            {getQuizRiskLevel()}
-          </Badge>
+                      return (
+                        <Button
+                          key={opt}
+                          variant="outline"
+                          className={`
+          h-12 text-sm justify-center rounded-xl transition-all duration-200 font-medium
+          ${selected
+                              ? "bg-gradient-to-r from-primary/40 via-secondary/40 to-primary/50 text-white shadow-lg"
+                              : "bg-white text-foreground hover:bg-gradient-to-r hover:from-primary/50 hover:via-secondary/50 hover:to-primary/70 hover:text-white shadow-md"
+                            }
+        `}
+                          onClick={() => handleAnswer(opt)}
+                        >
+                          {opt}
+                        </Button>
+                      );
+                    })}
+                  </div>
 
-          <div className="mt-6">
-            <Button
-              variant="outline"
-              className="rounded-xl"
-              onClick={() => {
-                setShowQuizResult(false);
-                setCurrentQuestion(0);
-                setAnswers([]);
-              }}
-            >
-              Retake Quiz
-            </Button>
-          </div>
+
+
+                  {/* Next Button */}
+                  <div className="mt-6 text-center">
+                    <Button
+                      size="lg"
+                      className="rounded-xl shadow-md px-8"
+                      onClick={nextQuestion}
+                      disabled={!answers[currentQuestion]?.length}
+                    >
+                      {currentQuestion < quizQuestions.length - 1 ? "Next →" : "Submit"}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-6">
+                  <p className="font-semibold text-lg mb-3">Your Kidney Health Risk Level:</p>
+                  <Badge
+                    variant={
+                      getQuizRiskLevel() === "High Risk"
+                        ? "destructive"
+                        : getQuizRiskLevel() === "Moderate Risk"
+                          ? "secondary"
+                          : "default"
+                    }
+                    className="px-4 py-2 text-base"
+                  >
+                    {getQuizRiskLevel()}
+                  </Badge>
+
+                  <div className="mt-6">
+                    <Button
+                      variant="outline"
+                      className="rounded-xl"
+                      onClick={() => {
+                        setShowQuizResult(false);
+                        setCurrentQuestion(0);
+                        setAnswers([]);
+                      }}
+                    >
+                      Retake Quiz
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      )}
-    </CardContent>
-  </Card>
-</div>
 
 
         {/* Kidney Health Blog & Articles */}

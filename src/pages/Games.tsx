@@ -35,7 +35,7 @@ export default function Games() {
 
         {/* Game Selection */}
         {!activeGame ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card
               className="shadow-card border-0 hover:shadow-hover transition-all duration-300 cursor-pointer animate-fade-in"
               onClick={() => setActiveGame("plate")}
@@ -80,31 +80,6 @@ export default function Games() {
                 <p className="text-sm text-muted-foreground">
                   Experience medical decision-making and learn about CKD
                   diagnosis.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card
-              className="shadow-card border-0 hover:shadow-hover transition-all duration-300 cursor-pointer animate-fade-in"
-              style={{ animationDelay: "300ms" }}
-              onClick={() => setActiveGame("runner")}
-            >
-              <CardHeader className="text-center">
-                <div className="flex justify-center mb-4">
-                  <Zap className="h-12 w-12 text-warning" />
-                </div>
-                <CardTitle>Kidney Shield Runner</CardTitle>
-                <CardDescription>
-                  Collect healthy items and avoid harmful ones in this action
-                  game
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <Badge variant="outline" className="mb-4">
-                  Action Game
-                </Badge>
-                <p className="text-sm text-muted-foreground">
-                  Test your reflexes while learning about lifestyle choices.
                 </p>
               </CardContent>
             </Card>

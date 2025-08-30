@@ -215,7 +215,7 @@ export default function PlateGame() {
                 <span>Available Foods</span>
               </CardTitle>
               <CardDescription>
-                Drag foods to your plate (max 5 items)
+                Drag foods to your plate (max 15 items)
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -264,7 +264,7 @@ export default function PlateGame() {
                 <span>Your Plate</span>
               </div>
             </CardTitle>
-            <CardDescription>Build your kidney-safe meal</CardDescription>
+            <CardDescription>Check your daily eating habit.</CardDescription>
           </CardHeader>
           <CardContent>
             <Droppable droppableId="plate">
@@ -294,7 +294,8 @@ export default function PlateGame() {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                            className="w-[80px] h-[80px] flex flex-col justify-center items-center rounded-lg border bg-muted text-center p-2 shadow-md hover:scale-105 transition-transform"
+                            className={`w-[80px] h-[80px] flex flex-col justify-center items-center rounded-lg border text-center p-2 shadow-md hover:scale-105 transition-transform
+                              ${plateGameComplete ? (item.type === "good" ? "bg-green-200" : "bg-red-200") : "bg-muted"}`}
                           >
                             <span className="text-2xl">{item.emoji}</span>
                             <span className="text-sm">{item.name}</span>
@@ -310,7 +311,7 @@ export default function PlateGame() {
 
             {plateItems.length > 0 && !plateGameComplete && (
               <Button onClick={finishPlateGame} className="w-full mt-4">
-                Finish Meal
+                Check Diet
               </Button>
             )}
 
@@ -318,18 +319,14 @@ export default function PlateGame() {
               <div className="mt-4 p-4 border rounded-lg bg-card">
                 <h4 className="font-medium mb-2">Meal Review</h4>
                 <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Total Score:</span>
-                    <span className="font-bold">{plateScore} points</span>
-                  </div>
                   <div className="text-sm text-muted-foreground">
                     {plateScore >= 30 &&
-                      "Excellent! This is a kidney-friendly meal."}
+                      "Good choice of diet for kidney safety"}
                     {plateScore >= 10 &&
                       plateScore < 30 &&
-                      "Good choice! Consider swapping some items for even better kidney health."}
+                      "Good choice of diet for kidney safety"}
                     {plateScore < 10 &&
-                      "This meal could be improved. Try adding more kidney-friendly foods."}
+                      "This diet could harm your kidney.You should reconsider and change your diet!"}
                   </div>
                 </div>
                 <Button

@@ -1,0 +1,100 @@
+.game-container {
+    position: relative;
+    width: 100%;
+    height: 700px;
+    background-color: #f5e6c4;
+    font-family: "Cinzel", serif;
+    overflow: hidden;
+}
+
+.room-bg {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+}
+
+.patient-layer {
+    position: absolute;
+    bottom: 150px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1;
+}
+
+.patient-img {
+    height: 250px;
+    border-radius: 10%;
+    object-fit: cover;
+}
+.dialogue-box {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    background: url("/parchment.png") repeat;
+    z-index: 1;
+    padding: 1rem;
+
+    line-height: 1.2; /* ✅ reduce spacing between lines */
+    font-size: 16px; /* optional: make it more compact */
+}
+
+.patient-box {
+    position: absolute;
+    left: 530px;
+    top: 180px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-family: "Courier New", monospace;
+    width: 330px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    text-align: left;
+    z-index: 10;
+}
+
+.response-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.response-buttons button {
+    margin: 0.005rem 0;
+    padding: 0.75rem 1.5rem;
+    background-color: #d4b483;
+    border: 2px solid #8b5e3c;
+    cursor: pointer;
+    font-family: "Cinzel", serif;
+    white-space: normal;
+    line-height: 1.4;
+    min-height: 3.5em;
+    text-align: left;
+    border-radius: 12px;
+    font-size: 1rem;
+    display: inline-block;
+}
+
+.score-text {
+    color: white;
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.button-with-feedback {
+    display: flex;
+    align-items: center;
+    margin: 0.5rem 0;
+}
+
+.inline-feedback {
+    margin-left: 12px;
+    font-weight: bold;
+    color: white; /* feedback beside button */
+    font-size: 16px;
+}

@@ -15,7 +15,7 @@ import LabAnalysis from "./pages/LabAnalysis";
 import Profile from "./pages/Profile";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
-
+import Footer from "./pages/Footer"; // updated import path
 const queryClient = new QueryClient();
 
 // Match your backend schema
@@ -32,7 +32,7 @@ export interface AppUser {
   medicalConditions?: string[];
   bloodType?: string;
   familyHistory?: "Yes" | "No";
-  physicalActivity?: "Low" | "Moderate" | "High";  // ← strict type
+  physicalActivity?: "Low" | "Moderate" | "High";  // strict type
   smoke?: "Yes" | "No";
   registeredAt?: string;
 }
@@ -56,14 +56,12 @@ const App = () => {
     setIsLoading(false);
   }, []);
 
-  // Called by <Signup />
   const handleSignup = (createdUser: AppUser) => {
     setUser(createdUser);
     localStorage.setItem("kidneyguard_user", JSON.stringify(createdUser));
     if (createdUser._id) localStorage.setItem("userId", createdUser._id);
   };
 
-  // Called by <Login />
   const handleLogin = (loggedInUser: AppUser) => {
     setUser(loggedInUser);
     localStorage.setItem("kidneyguard_user", JSON.stringify(loggedInUser));
@@ -74,8 +72,7 @@ const App = () => {
     setUser(null);
     localStorage.removeItem("kidneyguard_user");
     localStorage.removeItem("userId");
-    // optional: call backend to clear cookie
-    fetch(`${API}/users/logout`, { method: "POST", credentials: "include" }).catch(() => { });
+    fetch(`${API}/users/logout`, { method: "POST", credentials: "include" }).catch(() => {});
   };
 
   if (isLoading) {
@@ -94,54 +91,57 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <div className="min-h-screen bg-background">
-            {/* Conditionally render Navbar */}
+          <div className="min-h-screen flex flex-col bg-background">
+            {/* Navbar */}
             {window.location.pathname !== "/admin-dashboard" && (
               <Navbar isAuthenticated={!!user} onLogout={handleLogout} />
             )}
-            <Routes>
-              <Route
-                path="/"
-                element={user ? <Dashboard user={user as any} /> : <Navigate to="/login" replace />}
-              />
-              <Route
-                path="/login"
-                element={user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />}
-              />
-              <Route
-                path="/signup"
-                element={user ? <Navigate to="/" replace /> : <Signup onSignup={handleSignup} />}
-              />
-              <Route
-                path="/patients"
-                element={user ? <Patients /> : <Navigate to="/login" replace />}
-              />
-              <Route
-                path="/awareness"
-                element={user ? <Awareness /> : <Navigate to="/login" replace />}
-              />
-              <Route
-                path="/games"
-                element={user ? <Games /> : <Navigate to="/login" replace />}
-              />
-              <Route
-                path="/analysis"
-                element={user ? <LabAnalysis /> : <Navigate to="/login" replace />}
-              />
-              <Route
-                path="/profile"
-                element={
-                  user ? <Profile user={user} onUpdateUser={setUser} /> : <Navigate to="/login" replace />
-                }
-              />
 
-              {/* Admin route with role-based protection */}
-              <Route
-                path="/admin-dashboard"
-                element={user && user.role === "admin" ? <AdminDashboard /> : <Navigate to="/" replace />}
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            {/* Main content */}
+            <div className="flex-grow">
+              <Routes>
+                <Route
+                  path="/"
+                  element={user ? <Dashboard user={user as any} /> : <Navigate to="/login" replace />}
+                />
+                <Route
+                  path="/login"
+                  element={user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />}
+                />
+                <Route
+                  path="/signup"
+                  element={user ? <Navigate to="/" replace /> : <Signup onSignup={handleSignup} />}
+                />
+                <Route
+                  path="/patients"
+                  element={user ? <Patients /> : <Navigate to="/login" replace />}
+                />
+                <Route
+                  path="/awareness"
+                  element={user ? <Awareness /> : <Navigate to="/login" replace />}
+                />
+                <Route
+                  path="/games"
+                  element={user ? <Games /> : <Navigate to="/login" replace />}
+                />
+                <Route
+                  path="/analysis"
+                  element={user ? <LabAnalysis /> : <Navigate to="/login" replace />}
+                />
+                <Route
+                  path="/profile"
+                  element={user ? <Profile user={user} onUpdateUser={setUser} /> : <Navigate to="/login" replace />}
+                />
+                <Route
+                  path="/admin-dashboard"
+                  element={user && user.role === "admin" ? <AdminDashboard /> : <Navigate to="/" replace />}
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </div>
+
+            {/* Footer */}
+            {window.location.pathname !== "/admin-dashboard" && <Footer />}
           </div>
         </BrowserRouter>
       </TooltipProvider>

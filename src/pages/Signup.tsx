@@ -14,6 +14,16 @@ interface SignupProps {
   onSignup: (u: AppUser) => void;
 }
 
+// 🔑 Password validation helper
+function validatePassword(password: string): string | null {
+  if (password.length < 8) return "Password must be at least 8 characters";
+  if (!/[A-Z]/.test(password)) return "Password must contain at least one uppercase letter";
+  if (!/[a-z]/.test(password)) return "Password must contain at least one lowercase letter";
+  if (!/[0-9]/.test(password)) return "Password must contain at least one number";
+  if (!/[!@#$%^&*(),.?\":{}|<>]/.test(password)) return "Password must contain at least one special character";
+  return null;
+}
+
 export default function Signup({ onSignup }: SignupProps) {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState<any>({
@@ -33,6 +43,7 @@ export default function Signup({ onSignup }: SignupProps) {
     smoke: "",
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleMedicalConditionChange = (condition: string, checked: boolean) => {
@@ -45,10 +56,21 @@ export default function Signup({ onSignup }: SignupProps) {
 
   const handleBasicInfo = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // ✅ Validate password strength
+    const err = validatePassword(formData.password);
+    if (err) {
+      setPasswordError(err);
+      toast.error(err);
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       toast.error("Passwords do not match");
       return;
     }
+
+    setPasswordError(null);
     setStep(2);
   };
 
@@ -168,6 +190,9 @@ export default function Signup({ onSignup }: SignupProps) {
                       required
                     />
                   </div>
+                  {passwordError && (
+                    <p className="text-sm text-red-500 mt-1">{passwordError}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">

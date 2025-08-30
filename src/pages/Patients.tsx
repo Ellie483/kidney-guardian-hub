@@ -22,11 +22,9 @@ const hasRichDetails = (doc: any): boolean => {
   return (
     d.hasOwnProperty("serum_creatinine_mgdl") ||
     d.hasOwnProperty("estimated_glomerular_filtration_rate_egfr") ||
-    d.hasOwnProperty("blood_urea_mgdl") ||
-    d.hasOwnProperty("hemoglobin_level_gms")
+    d.hasOwnProperty("blood_urea_mgdl")
   );
 };
-
 async function fetchFullPatientById(id: string | number) {
   const candidates = [
     `${API_BASE}/patients/${id}`,
@@ -64,14 +62,19 @@ type PatientCard = {
     highBP?: boolean; 
     activityLevel?: string | null; 
   };
-  activityLevel?: string | null;   // <-- add this
+  activityLevel?: string | null;
   riskFactors?: string[];
   improvements?: string[];
-  vitals?: { bmi?: number | null; egfr?: number | null; hemoglobin?: number | null };
+  vitals?: {
+    bmi?: number | null;
+    egfr?: number | null;
+    bloodUrea?: number | null;   // ✅ added
+  };
   labFlags?: string[];
   matchScore?: number;
-  raw?: any;  
+  raw?: any;
 };
+
 
 
 
@@ -84,6 +87,20 @@ const toNum = (v: string) => (v === "" || v == null ? undefined : Number(v));
 /* =========================================================
    Helpers
 ========================================================= */
+const fmtNum = (v: any, digits = 2) =>
+  v == null || v === "" || Number.isNaN(Number(v)) ? "—" : Number(v).toFixed(digits);
+
+// Keys to force 2-dp in the Clinical details grid
+const TWO_DP_FIELDS = new Set([
+  "serum_creatinine_mgdl",
+  "estimated_glomerular_filtration_rate_egfr",
+  "blood_urea_mgdl",
+  "sodium_level_meql",
+  "potassium_level_meql",
+  "random_blood_glucose_level_mgdl",
+  "body_mass_index_bmi",
+  // add more here if you want them 2dp in the details grid
+]);
 const yesNo = (v: any): string => {
   // accept 1/0, true/false, "yes"/"no"
   if (v === true || v === 1 || v === "1") return "Yes";
@@ -112,13 +129,9 @@ const asBool = (v: any) => {
 };
 
 
-
-/* ---------- details grid (labels & order for 31 attributes) ---------- */
 const FIELD_ORDER = [
   "age_of_the_patient",
   "smoking_status",
-  "diabetes_mellitus_yesno",
-  "hypertension_yesno",
   "physical_activity_level",
   "family_history_of_chronic_kidney_disease",
   "body_mass_index_bmi",
@@ -128,31 +141,17 @@ const FIELD_ORDER = [
   "serum_creatinine_mgdl",
   "estimated_glomerular_filtration_rate_egfr",
   "blood_urea_mgdl",
-  "hemoglobin_level_gms",
   "sodium_level_meql",
   "potassium_level_meql",
-  "serum_albumin_level",
-  "cholesterol_level",
   "random_blood_glucose_level_mgdl",
-  "cystatin_c_level",
-  "albumin_in_urine",
-  "urine_proteintocreatinine_ratio",
-  "specific_gravity_of_urine",
-  "red_blood_cells_in_urine",
-  "pus_cells_in_urine",
-  "bacteria_in_urine",
-  "blood_pressure_mmhg",
+  "albumin_in_urine",                 // ✅ NEW (shown as “Urine albumin”)
   "appetite_goodpoor",
-  "pedal_edema_yesno",
-  "anemia_yesno",
   "target",
 ] as const;
 
 const LABELS: Record<string, string> = {
   age_of_the_patient: "Age",
   smoking_status: "Smoking status",
-  diabetes_mellitus_yesno: "Diabetes (Y/N)",
-  hypertension_yesno: "Hypertension (Y/N)",
   physical_activity_level: "Physical activity",
   family_history_of_chronic_kidney_disease: "Family history of CKD",
   body_mass_index_bmi: "BMI",
@@ -162,25 +161,15 @@ const LABELS: Record<string, string> = {
   serum_creatinine_mgdl: "Serum creatinine (mg/dL)",
   estimated_glomerular_filtration_rate_egfr: "eGFR",
   blood_urea_mgdl: "Blood urea (mg/dL)",
-  hemoglobin_level_gms: "Hemoglobin (g/dL)",
   sodium_level_meql: "Sodium (mEq/L)",
   potassium_level_meql: "Potassium (mEq/L)",
-  serum_albumin_level: "Serum albumin",
-  cholesterol_level: "Cholesterol",
   random_blood_glucose_level_mgdl: "Random blood glucose (mg/dL)",
-  cystatin_c_level: "Cystatin C",
-  albumin_in_urine: "Albumin in urine",
-  urine_proteintocreatinine_ratio: "Urine protein/creatinine ratio",
-  specific_gravity_of_urine: "Specific gravity (urine)",
-  red_blood_cells_in_urine: "RBC in urine",
-  pus_cells_in_urine: "Pus cells in urine",
-  bacteria_in_urine: "Bacteria in urine",
-  blood_pressure_mmhg: "Blood pressure (mmHg)",
+  albumin_in_urine: "Urine albumin",          // ✅ NEW
   appetite_goodpoor: "Appetite",
-  pedal_edema_yesno: "Pedal edema (Y/N)",
-  anemia_yesno: "Anemia (Y/N)",
   target: "Target / Diagnosis",
 };
+
+
 
 const prettyByKey = (key: string, v: any) => {
   if (v === null || v === undefined || v === "") return "—";
@@ -192,122 +181,153 @@ const prettyByKey = (key: string, v: any) => {
   return String(v);
 };
 
-/* ---------- build a 'details' snapshot from whatever shape we get ---------- */
+/* ---------- build a 'details' snapshot from reduced schema ---------- */
 function buildDetails(doc: any): Record<string, any> {
   const d = doc?.patient ?? doc ?? {};
-  return {
-    age_of_the_patient: d.age_of_the_patient ?? d.age ?? null,
-    smoking_status:
-      d.smoking_status ??
-      (typeof d?.lifestyle?.smokes === "boolean" ? (d.lifestyle.smokes ? 1 : 0) : undefined),
-    diabetes_mellitus_yesno:
-      d.diabetes_mellitus_yesno ??
-      (typeof d?.lifestyle?.diabetic === "boolean" ? (d.lifestyle.diabetic ? 1 : 0) : undefined),
-    hypertension_yesno:
-      d.hypertension_yesno ??
-      (typeof d?.lifestyle?.highBP === "boolean" ? (d.lifestyle.highBP ? 1 : 0) : undefined),
-      physical_activity_level:
-      d.physical_activity_level ??
-      d?.lifestyle?.activityLevel ??
-      d?.lifestyle?.activity ??                                        // <-- add this
-      null,
-    family_history_of_chronic_kidney_disease: d.family_history_of_chronic_kidney_disease,
-    body_mass_index_bmi: d.body_mass_index_bmi ?? d?.vitals?.bmi ?? null,
-    duration_of_diabetes_mellitus_years: d.duration_of_diabetes_mellitus_years,
-    duration_of_hypertension_years: d.duration_of_hypertension_years,
-    coronary_artery_disease_yesno: d.coronary_artery_disease_yesno,
-    serum_creatinine_mgdl: d.serum_creatinine_mgdl,
-    estimated_glomerular_filtration_rate_egfr:
-      d.estimated_glomerular_filtration_rate_egfr ?? d?.vitals?.egfr ?? null,
-    blood_urea_mgdl: d.blood_urea_mgdl,
-    hemoglobin_level_gms: d.hemoglobin_level_gms ?? d?.vitals?.hemoglobin ?? null,
-    sodium_level_meql: d.sodium_level_meql,
-    potassium_level_meql: d.potassium_level_meql,
-    serum_albumin_level: d.serum_albumin_level,
-    cholesterol_level: d.cholesterol_level,
-    random_blood_glucose_level_mgdl: d.random_blood_glucose_level_mgdl,
-    cystatin_c_level: d.cystatin_c_level,
-    albumin_in_urine: d.albumin_in_urine,
-    urine_proteintocreatinine_ratio: d.urine_proteintocreatinine_ratio,
-    specific_gravity_of_urine: d.specific_gravity_of_urine,
-    red_blood_cells_in_urine: d.red_blood_cells_in_urine,
-    pus_cells_in_urine: d.pus_cells_in_urine,
-    bacteria_in_urine: d.bacteria_in_urine,
-    blood_pressure_mmhg: d.blood_pressure_mmhg,
-    appetite_goodpoor: d.appetite_goodpoor,
-    pedal_edema_yesno: d.pedal_edema_yesno,
-    anemia_yesno: d.anemia_yesno,
-    target: d.target ?? d.diagnosis,
-  };
+
+  // allow graceful fallbacks from card-normalized shape if present
+  const activity =
+    d.physical_activity_level ??
+    d?.lifestyle?.activityLevel ??
+    d?.lifestyle?.activity ??
+    null;
+
+  const egfr =
+    d.estimated_glomerular_filtration_rate_egfr ??
+    d?.vitals?.egfr ??
+    null;
+
+  const bmi =
+    d.body_mass_index_bmi ??
+    d?.vitals?.bmi ??
+    null;
+
+    return {
+      age_of_the_patient: d.age_of_the_patient ?? d.age ?? null,
+      smoking_status:
+        d.smoking_status ??
+        (typeof d?.lifestyle?.smokes === "boolean" ? (d.lifestyle.smokes ? 1 : 0) : undefined),
+    
+      physical_activity_level: activity,
+    
+      family_history_of_chronic_kidney_disease: d.family_history_of_chronic_kidney_disease,
+      body_mass_index_bmi: bmi,
+    
+      duration_of_diabetes_mellitus_years: d.duration_of_diabetes_mellitus_years,
+      duration_of_hypertension_years: d.duration_of_hypertension_years,
+      coronary_artery_disease_yesno: d.coronary_artery_disease_yesno,
+    
+      serum_creatinine_mgdl: d.serum_creatinine_mgdl,
+      estimated_glomerular_filtration_rate_egfr: egfr,
+      blood_urea_mgdl: d.blood_urea_mgdl,
+      sodium_level_meql: d.sodium_level_meql,
+      potassium_level_meql: d.potassium_level_meql,
+      random_blood_glucose_level_mgdl: d.random_blood_glucose_level_mgdl,
+    
+      albumin_in_urine: d.albumin_in_urine,       // ✅ NEW
+    
+      blood_pressure_mmhg: d.blood_pressure_mmhg,
+      appetite_goodpoor: d.appetite_goodpoor,
+    
+      target: d.target ?? d.diagnosis,
+    };
+    
 }
 
-function prettyTarget(val: any): string | undefined {
+
+function prettyStage(val: any): string | undefined {
   if (val == null) return undefined;
 
-  // Handle numeric encodings 0..3
+  // Numeric encodings 0..4
   if (typeof val === "number") {
-    if (val === 0) return "No disease";
-    if (val === 1) return "Low risk";
-    if (val === 2) return "Moderate risk";
-    if (val === 3) return "High risk";
+    const map = ["No disease", "Low risk", "Moderate risk", "High risk", "Severe disease"];
+    return map[val] ?? undefined;
   }
 
   const s = String(val).trim().toLowerCase();
 
-  // Common string encodings
-  if (["no disease", "no_disease", "none", "negative", "no ckd", "no"].includes(s))
+  // Common string encodings (normalize underscores/spaces)
+  const t = s.replace(/\s+/g, " "); // collapse spaces
+  if (["no disease", "no_disease", "none", "negative", "no ckd", "no"].includes(s) || t === "no disease")
     return "No disease";
   if (s.includes("low")) return "Low risk";
   if (s.includes("moderate") || s === "med") return "Moderate risk";
+  if (s.includes("severe")) return "Severe disease";
   if (s.includes("high")) return "High risk";
 
-  // If target was something like "0", "1", "2", "3"
-  if (["0","1","2","3"].includes(s)) {
-    const n = Number(s);
-    return prettyTarget(n);
-  }
+  // "0","1","2","3","4"
+  if (/^[0-4]$/.test(s)) return prettyStage(Number(s));
 
-  // Fallback: don’t force Unknown; just hide the badge if we can't classify
-  return undefined;
+  return undefined; // hide if unknown
 }
 
 
-/** Adapt backend docs (with many possible field names) to our card shape */
-/** Adapt backend docs to our card shape */
+/** Adapt backend docs to our card shape (21 fields only) */
 const normalizePatient = (raw: any, idx = 0): PatientCard => {
-  // common top-levels we’ve seen from different endpoints
   const src = raw?.patient ?? raw ?? {};
 
-  // Try several likely places where the full Mongo doc might live
+  // Try likely places where the full Mongo doc might live
   const rawDoc =
-    raw?.raw ??                     // /search/cohort often
-    raw?.patient?.raw ??            // some /patients/similar responses
-    raw?.patientRaw ??              // custom backends
-    src?.raw ??                     // if frontend wrapped once already
-    raw?.doc ?? raw?.record ??      // other common keys
-    raw?.patient ??                 // last resort: take patient itself
-    src;                            // or the src itself
+    raw?.raw ??
+    raw?.patient?.raw ??
+    raw?.patientRaw ??
+    src?.raw ??
+    raw?.doc ?? raw?.record ??
+    raw?.patient ??
+    src;
 
   const fullRaw = rawDoc;
 
   const score =
     asNum(raw?.matchScore) ?? asNum(raw?.score) ?? asNum(raw?.similarity) ?? asNum(raw?._score);
 
+  // Basic vitals from reduced set (+ safe fallbacks)
   const age = asNum(src.age) ?? asNum(src.age_of_the_patient);
   const bmi = asNum(src?.vitals?.bmi) ?? asNum(src.body_mass_index_bmi);
-  const egfr = asNum(src?.vitals?.egfr) ?? asNum(src.estimated_glomerular_filtration_rate_egfr);
-  const hemoglobin = asNum(src?.vitals?.hemoglobin) ?? asNum(src.hemoglobin_level_gms);
+  const egfr =
+    asNum(src?.vitals?.egfr) ??
+    asNum(src.estimated_glomerular_filtration_rate_egfr);
 
-  const diabetic = asBool(src?.lifestyle?.diabetic) ?? asBool(src.diabetes_mellitus_yesno);
-  const highBP   = asBool(src?.lifestyle?.highBP)   ?? asBool(src.hypertension_yesno);
-  const smokes   = asBool(src?.lifestyle?.smokes)   ?? asBool(src.smoking_status);
+  // Activity
   const activityLevel =
-  src?.lifestyle?.activityLevel ??
-  src?.lifestyle?.activity ??
-  (typeof src.physical_activity_level === "string" ? src.physical_activity_level : null) ??
-  (typeof fullRaw?.physical_activity_level === "string" ? fullRaw.physical_activity_level : null);
+    src?.lifestyle?.activityLevel ??
+    src?.lifestyle?.activity ??
+    (typeof src.physical_activity_level === "string" ? src.physical_activity_level : null) ??
+    (typeof fullRaw?.physical_activity_level === "string" ? fullRaw.physical_activity_level : null);
+
+  // Infer lifestyle flags if missing from backend card
+  const smokingStatus = asNum(src.smoking_status);
+  const smokes =
+    asBool(src?.lifestyle?.smokes) ??
+    (smokingStatus === 1 ? true : smokingStatus === 0 ? false : undefined);
+
+  const durDM  = asNum(src.duration_of_diabetes_mellitus_years);
+  const durHTN = asNum(src.duration_of_hypertension_years);
+
+  // Parse systolic if "120/80"
+  const systolic = (() => {
+    const v = src.blood_pressure_mmhg ?? fullRaw?.blood_pressure_mmhg;
+    if (v == null || v === "") return undefined;
+    const s = String(v);
+    if (s.includes("/")) {
+      const left = Number(s.split("/")[0]);
+      return Number.isFinite(left) ? left : undefined;
+    }
+    const n = Number(s);
+    return Number.isFinite(n) ? n : undefined;
+  })();
+
+  const diabetic =
+    asBool(src?.lifestyle?.diabetic) ??
+    (Number.isFinite(durDM) && durDM > 0 ? true : undefined);
+
+  const highBP =
+    asBool(src?.lifestyle?.highBP) ??
+    (Number.isFinite(durHTN) && durHTN > 0 ? true :
+     Number.isFinite(systolic) && systolic >= 140 ? true : undefined);
 
   const name  = src.name || src.fullName || `Profile ${idx + 1}`;
+
   const rawStageSource =
     src.target ??
     src.prediction ??
@@ -317,18 +337,19 @@ const normalizePatient = (raw: any, idx = 0): PatientCard => {
     fullRaw?.prediction ??
     fullRaw?.risk ??
     fullRaw?.label;
-    const stage = prettyTarget(rawStageSource);
-  
-  // Prefer explicit diagnosis string if present; otherwise use the pretty stage label.
-  // (Important: this handles numeric 0..3 as well, so “0” won’t disappear.)
+
+  const stage = prettyStage(rawStageSource);
+
   const diagnosisLabel =
     (typeof src.diagnosis === "string" && src.diagnosis.trim() !== "")
       ? src.diagnosis
       : stage;
-  
-  const riskFactors = [diabetic && "Diabetes", highBP && "High Blood Pressure", smokes && "Smoking"]
-    .filter(Boolean) as string[];
-  
+  const albuminUrine = asNum(src.albumin_in_urine);
+  const riskFactors = [
+    diabetic && "Diabetes",
+    highBP && "High Blood Pressure",
+    smokes && "Smoking",
+  ].filter(Boolean) as string[];
 
   return {
     id: src.id ?? src._id ?? idx,
@@ -337,15 +358,22 @@ const normalizePatient = (raw: any, idx = 0): PatientCard => {
     age: age ?? null,
     gender: (src.gender || src.sex || "").toString().toLowerCase(),
     stage,
-    diagnosis: diagnosisLabel,        
+    diagnosis: diagnosisLabel,
     lifestyle: { diabetic, highBP, smokes, exercise: undefined, activityLevel },
-    activityLevel, // top-level convenience (for older UIs)
+    activityLevel,
     riskFactors,
     improvements: src.improvements || [],
-    vitals: { bmi: bmi ?? null, egfr: egfr ?? null, hemoglobin: hemoglobin ?? null },
+    vitals: {
+      bmi: bmi ?? null,
+      egfr: egfr ?? null,
+      bloodUrea:
+        asNum(src.blood_urea_mgdl) ??
+        asNum((rawDoc ?? src)?.blood_urea_mgdl) ?? // fallback to full raw if present
+        null,
+    },
     labFlags: src.labFlags || [],
     matchScore: typeof score === "number" ? Math.max(0, Math.min(100, score)) : undefined,
-    raw: fullRaw,                                     // <-- use the full raw doc
+    raw: fullRaw,
   };
 };
 
@@ -371,7 +399,7 @@ export default function Patients() {
     if (s.includes("no disease")) return "bg-emerald-100 text-emerald-800";
     if (s.includes("low"))        return "bg-blue-100 text-blue-800";
     if (s.includes("moderate"))   return "bg-amber-100 text-amber-800";
-    if (s.includes("high"))       return "bg-red-100 text-red-800";
+    if (s.includes("high") || s.includes("severe")) return "bg-red-100 text-red-800";
     return "bg-muted text-muted-foreground";
   };
   
@@ -385,26 +413,29 @@ const closeModal = () => {
 const renderCards = (arr: PatientCard[]) => (
   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {arr.map((p, index) => {
-      // Get the necessary values
-      const stage = p.stage;  // Stage or diagnosis of the patient
+      const stage = p.stage;
       const vitals = p.vitals || {};
-      const previewRisks = (p.riskFactors || []).slice(0, 2);  // Limiting risk factors
-      const previewFlags = (p.labFlags || []).slice(0, 1);  // Limiting lab flags
+      const previewRisks = (p.riskFactors || []).slice(0, 3);
+      const previewFlags = (p.labFlags || []).slice(0, 1);
       const activity =
-  p.lifestyle?.activityLevel ??
-  (p as any).activityLevel ??             // top-level, if your API sends it
-  (p.lifestyle as any)?.activity ?? null; // if backend used lifestyle.activity
+        p.lifestyle?.activityLevel ??
+        (p as any).activityLevel ??
+        (p.lifestyle as any)?.activity ?? null;
+
+      const activityLabel = activity
+        ? activity.charAt(0).toUpperCase() + activity.slice(1)
+        : null;
 
       return (
         <Card
-  key={p._id || p.id || index}
-  className="shadow-card border border-emerald-100 hover:shadow-hover transition-all duration-300 animate-fade-in rounded-lg"
-  style={{ animationDelay: `${index * 80}ms` }}
->
+          key={p._id || p.id || index}
+          className="shadow-card border border-emerald-100 hover:shadow-hover transition-all duration-300 animate-fade-in rounded-lg"
+          style={{ animationDelay: `${index * 80}ms` }}
+        >
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg">{ `Profile ${index + 1}`}</CardTitle>
+                <CardTitle className="text-lg">{`Profile ${index + 1}`}</CardTitle>
                 <CardDescription>{p.age ? `${p.age} years old` : "—"}</CardDescription>
               </div>
               {stage && (
@@ -414,53 +445,58 @@ const renderCards = (arr: PatientCard[]) => (
           </CardHeader>
 
           <CardContent className="space-y-4">
+            {/* Vitals (reduced: BMI, eGFR) */}
             <div className="grid grid-cols-3 gap-2 text-xs">
-              <div>BMI: <span className="font-medium">{vitals.bmi ?? "—"}</span></div>
-              <div>eGFR: <span className="font-medium">{vitals.egfr ?? "—"}</span></div>
-              <div>Hgb: <span className="font-medium">{vitals.hemoglobin ?? "—"}</span></div>
+            <div>BMI: <span className="font-medium">{fmtNum(vitals.bmi)}</span></div>
+            <div>eGFR: <span className="font-medium">{fmtNum(vitals.egfr)}</span></div>
+            <div>Urea: <span className="font-medium">{fmtNum(vitals.bloodUrea)}</span></div>
             </div>
 
-            {/* Always display the title for Risk Factors, even if empty */}
+            {/* Risk Factors */}
             <div className="mt-2">
               <h4 className="text-sm font-medium mb-2">Risk Factors:</h4>
               <div className="flex flex-wrap gap-1">
-                {previewRisks.length > 0
-                  ? previewRisks.map((rf, i) => (
-                      <Badge key={i} variant="outline" className="text-xs">{rf}</Badge>
-                    ))
-                  : <span className="text-slate-500">No risk factors</span>}
+                {previewRisks.length > 0 ? (
+                  previewRisks.map((rf, i) => (
+                    <Badge key={i} variant="outline" className="text-xs">
+                      {rf}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-slate-500">No risk factors</span>
+                )}
               </div>
             </div>
 
-            {/* Always display the title for Lifestyle Activity */}
+            {/* Lifestyle */}
             <div className="mt-2">
               <h4 className="text-sm font-medium mb-2">Lifestyle:</h4>
               <div className="flex flex-wrap gap-1">
-              {activity ? (
-  <Badge variant="outline" className="text-xs">
-    Activity: {activity[0].toUpperCase() + activity.slice(1)}
-  </Badge>
-) : (
-  <span className="text-slate-500">No data</span>
-)}
-
+                {activityLabel ? (
+                  <Badge variant="outline" className="text-xs">
+                    Activity: {activityLabel}
+                  </Badge>
+                ) : (
+                  <span className="text-slate-500">No data</span>
+                )}
               </div>
             </div>
 
-            {/* Lab Flags */}
+            {/* Lab Flags (optional) */}
             {previewFlags.length > 0 && (
               <div className="mt-2">
                 <h4 className="text-sm font-medium mb-2">Lab Flag:</h4>
                 <div className="flex flex-wrap gap-1">
                   {previewFlags.map((f, i) => (
-                    <Badge key={i} variant="outline" className="text-xs">{f}</Badge>
+                    <Badge key={i} variant="outline" className="text-xs">
+                      {f}
+                    </Badge>
                   ))}
                 </div>
               </div>
             )}
           </CardContent>
 
-          {/* Button positioned consistently at the bottom */}
           <div className="p-2 flex justify-end">
             <Button
               className="bg-emerald-600 w-full text-white hover:bg-emerald-700"
@@ -476,301 +512,296 @@ const renderCards = (arr: PatientCard[]) => (
   </div>
 );
 
-  async function enrichPatients(cards: PatientCard[]): Promise<PatientCard[]> {
-    const results = await Promise.allSettled(
-      cards.map(async (c) => {
-        // If we already have rich fields, keep as-is
-        if (hasRichDetails(c.raw ?? c)) return c;
+
+async function enrichPatients(cards: PatientCard[]): Promise<PatientCard[]> {
+  const results = await Promise.allSettled(
+    cards.map(async (c) => {
+      // If we already have rich fields, keep as-is
+      if (hasRichDetails(c.raw ?? c)) return c;
+
+      const id = c._id ?? c.id;
+      if (!id) return c;
+
+      // Pull full record by id
+      const full = await fetchFullPatientById(id);
+
+      // Recompute stage / diagnosis if backend stores them differently
+      const rawStage = full?.target ?? full?.prediction ?? full?.risk ?? full?.label;
+      const stage = c.stage ?? prettyStage(rawStage);
+      const diagnosis =
+        c.diagnosis ??
+        (typeof full?.diagnosis === "string" && full.diagnosis.trim() !== ""
+          ? full.diagnosis
+          : stage);
+
+      return {
+        ...c,
+        stage,
+        diagnosis,
+        raw: full, // now we have the reduced 21 fields for buildDetails(...)
+        vitals: {
+          bmi: c.vitals?.bmi ?? asNum(full?.body_mass_index_bmi) ?? null,
+          egfr: c.vitals?.egfr ?? asNum(full?.estimated_glomerular_filtration_rate_egfr) ?? null,
+          bloodUrea: c.vitals?.bloodUrea ?? asNum(full?.blood_urea_mgdl) ?? null, // ✅ add this
+        },
+      } as PatientCard;
+    })
+  );
+
+  // Keep originals on failures, enriched on successes
+  return results.map((r, i) => (r.status === "fulfilled" ? r.value : cards[i]));
+}
+
   
-        const id = c._id ?? c.id;
-        if (!id) return c;
-  
-        // Pull full record by id
-        const full = await fetchFullPatientById(id);
-  
-        // Recompute stage / diagnosis if backend stores them differently
-        const rawStage = full?.target ?? full?.prediction ?? full?.risk ?? full?.label;
-        const stage = c.stage ?? prettyTarget(rawStage);
-        const diagnosis =
-          c.diagnosis ??
-          (typeof full?.diagnosis === "string" && full.diagnosis.trim() !== ""
-            ? full.diagnosis
-            : stage);
-  
-        return {
-          ...c,
-          stage,
-          diagnosis,
-          raw: full, // <-- now we have all 31 fields available to buildDetails(...)
-          vitals: {
-            bmi: c.vitals?.bmi ?? asNum(full?.body_mass_index_bmi) ?? null,
-            egfr: c.vitals?.egfr ?? asNum(full?.estimated_glomerular_filtration_rate_egfr) ?? null,
-            hemoglobin: c.vitals?.hemoglobin ?? asNum(full?.hemoglobin_level_gms) ?? null,
-          },
-        } as PatientCard;
-      })
+ /* =========================================================
+   TAB 1: Similar
+========================================================= */
+const [simLoading, setSimLoading] = useState(false);
+const [simError, setSimError] = useState<string | null>(null);
+const [similar, setSimilar] = useState<PatientCard[]>([]);
+const [others] = useState<PatientCard[]>([]);
+
+useEffect(() => {
+  let canceled = false;
+
+  // --- helper: unwrap any plausible list shape ---
+  const unwrapList = (data: any): any[] => {
+    if (Array.isArray(data)) return data;
+
+    const candidates = [
+      "results", "matches", "patients", "items", "records", "hits", "docs", "data",
+    ];
+
+    for (const k of candidates) {
+      const v = data?.[k];
+      if (Array.isArray(v)) return v;
+      // nested: { data: { results: [...] } }, { hits: { hits: [...] } }, etc.
+      if (Array.isArray(v?.results)) return v.results;
+      if (Array.isArray(v?.items)) return v.items;
+      if (Array.isArray(v?.hits)) return v.hits;
+    }
+
+    // Sometimes servers send an object like {0:{...},1:{...}}
+    const objectValues = Object.values(data ?? {});
+    const arrayLike = objectValues.filter(
+      (x) => x && typeof x === "object" && !Array.isArray(x)
     );
-  
-    // Keep originals on failures, enriched on successes
-    return results.map((r, i) => (r.status === "fulfilled" ? r.value : cards[i]));
-  }
-  
-  /* =========================================================
-     TAB 1: Similar
-  ========================================================= */
-  const [simLoading, setSimLoading] = useState(false);
-  const [simError, setSimError] = useState<string | null>(null);
-  const [similar, setSimilar] = useState<PatientCard[]>([]);
-  const [others] = useState<PatientCard[]>([]);
+    if (
+      arrayLike.length > 0 &&
+      arrayLike.every((o: any) => "_id" in o || "id" in o || "name" in o)
+    ) {
+      return arrayLike as any[];
+    }
 
-  useEffect(() => {
-    let canceled = false;
-  
-    // --- helper: unwrap any plausible list shape ---
-    const unwrapList = (data: any): any[] => {
-      if (Array.isArray(data)) return data;
-  
-      const candidates = [
-        "results", "matches", "patients", "items", "records", "hits", "docs", "data",
-      ];
-  
-      for (const k of candidates) {
-        const v = data?.[k];
-        if (Array.isArray(v)) return v;
-        // nested: { data: { results: [...] } }, { hits: { hits: [...] } }, etc.
-        if (Array.isArray(v?.results)) return v.results;
-        if (Array.isArray(v?.items)) return v.items;
-        if (Array.isArray(v?.hits)) return v.hits;
+    return [];
+  };
+
+  (async () => {
+    try {
+      setSimError(null);
+      setSimLoading(true);
+
+      const userId =
+        localStorage.getItem("userId") ||
+        JSON.parse(localStorage.getItem("kidney_user") || "{}")?._id ||
+        JSON.parse(localStorage.getItem("kidneyguard_user") || "{}")?._id;
+
+      if (!userId) {
+        setSimError("You're not signed in.");
+        return;
       }
-  
-      // Sometimes servers send an object like {0:{...},1:{...}}
-      const objectValues = Object.values(data ?? {});
-      const arrayLike = objectValues.filter(
-        (x) => x && typeof x === "object" && !Array.isArray(x)
-      );
-      if (
-        arrayLike.length > 0 &&
-        arrayLike.every((o: any) => "_id" in o || "id" in o || "name" in o)
-      ) {
-        return arrayLike as any[];
-      }
-  
-      return [];
+
+      const res = await fetch(`${API_BASE}/patients/similar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ userId, limit: 12 }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json();
+      const arr = unwrapList(data);
+      const normalized = arr.map((d, i) => normalizePatient(d, i));
+      const enriched = await enrichPatients(normalized);
+      if (!canceled) setSimilar(enriched);
+    } catch (e: any) {
+      if (!canceled) setSimError(e.message || "Failed to load similar patients");
+    } finally {
+      if (!canceled) setSimLoading(false);
+    }
+  })();
+
+  return () => { canceled = true; };
+}, []);
+
+useEffect(() => {
+  let cancelled = false;
+
+  (async () => {
+    if (!open || !selected) return;
+
+    // If we already have rich details, skip.
+    if (hasRichDetails(selected.raw ?? selected) && selected?.vitals?.bloodUrea != null) return;
+
+    const id = selected._id ?? selected.id;
+    if (!id) return;
+
+    try {
+      setDetailsError(null);
+      setDetailsLoading(true);
+
+      const full = await fetchFullPatientById(id);
+      if (cancelled) return;
+
+      // Recompute stage/diagnosis if needed
+      const rawStage = full?.target ?? full?.prediction ?? full?.risk ?? full?.label;
+      const computedStage = prettyStage(rawStage);
+      const computedDx =
+        (typeof full?.diagnosis === "string" && full.diagnosis.trim() !== "")
+          ? full.diagnosis
+          : (computedStage ?? selected.diagnosis);
+
+      setSelected(prev => prev && ({
+        ...prev,
+        stage: prev.stage ?? computedStage,
+        diagnosis: prev.diagnosis ?? computedDx,
+        raw: full, // 🔑 now modal has the reduced 21 fields
+        vitals: {
+          bmi: prev.vitals?.bmi ?? asNum(full?.body_mass_index_bmi) ?? null,
+          egfr: prev.vitals?.egfr ?? asNum(full?.estimated_glomerular_filtration_rate_egfr) ?? null,
+          bloodUrea: prev.vitals?.bloodUrea ?? asNum(full?.blood_urea_mgdl) ?? null, // ✅ add this
+        },
+      }));
+    } catch (e: any) {
+      if (!cancelled) setDetailsError(e?.message || "Failed to load details");
+    } finally {
+      if (!cancelled) setDetailsLoading(false);
+    }
+  })();
+
+  return () => { cancelled = true; };
+}, [open, selected]);
+
+
+/* =========================================================
+   TAB 2: Explore (cohort search)
+========================================================= */
+const [patients, setPatients] = useState<PatientCard[]>([]);
+const [total, setTotal] = useState<number>(0);
+const [kpi, setKpi] = useState({
+  avgEgfr: null as number | null,
+  medBmi: null as number | null,
+  pctSmokers: null as number | null,
+  pctDiabetes: null as number | null,
+  pctHyperten: null as number | null,
+});
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState<string | null>(null);
+
+// Filters
+const [activityLevel, setActivityLevel] = useState<"low" | "moderate" | "high" | null>("low");
+const [familyHistory, setFamilyHistory] = useState<"any" | "yes" | "no">("any");
+const [ageMin, setAgeMin] = useState<string>("");
+const [ageMax, setAgeMax] = useState<string>("");
+const [smoking, setSmoking] = useState<"any" | "yes" | "no">("any");
+const [diabetes, setDiabetes] = useState<"any" | "yes" | "no">("any");
+const [hypertension, setHypertension] = useState<"any" | "yes" | "no">("any");
+
+// Use backend enums for CKD
+type CkdFilter = "any" | "no_disease" | "low_risk" | "moderate_risk" | "high_risk" | "severe_disease";
+const [ckd, setCkd] = useState<CkdFilter>("any");
+
+// Helpers
+const booleanChoice = (v: "any" | "yes" | "no") =>
+  v === "yes" ? true : v === "no" ? false : undefined;
+
+const fetchCohort = useCallback(async () => {
+  try {
+    setLoading(true);
+    setError(null);
+
+    // Build request using reduced 21-field semantics
+    const body = {
+      filters: {
+        // convert familyHistory to boolean
+        familyHistory: booleanChoice(familyHistory),
+        age: { min: toNum(ageMin), max: toNum(ageMax) },
+        smoking: booleanChoice(smoking),
+        diabetes: booleanChoice(diabetes),
+        hypertension: booleanChoice(hypertension),
+        // CKD enum or undefined for "any"
+        ckd: ckd === "any" ? undefined : ckd,
+        // single activity level or none
+        activity: activityLevel ? [activityLevel] : [],
+      },
+      sampleLimit: 12,
     };
-  
-    (async () => {
-      try {
-        setSimError(null);
-        setSimLoading(true);
-  
-        const userId =
-          localStorage.getItem("userId") ||
-          JSON.parse(localStorage.getItem("kidney_user") || "{}")?._id ||
-          JSON.parse(localStorage.getItem("kidneyguard_user") || "{}")?._id;
-  
-        if (!userId) {
-          setSimError("You're not signed in.");
-          return;
-        }
-  
-        const res = await fetch(`${API_BASE}/patients/similar`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ userId, limit: 12 }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  
-        const data = await res.json();
-        const arr = unwrapList(data);
-        const normalized = arr.map((d, i) => normalizePatient(d, i));
-        const enriched = await enrichPatients(normalized);
-        if (!canceled) setSimilar(enriched);
-        // if (!canceled) setSimilar(normalized);
-      } catch (e: any) {
-        if (!canceled) setSimError(e.message || "Failed to load similar patients");
-      } finally {
-        if (!canceled) setSimLoading(false);
-      }
-    })();
-  
-    return () => { canceled = true; };
-  }, []);
-  
-  useEffect(() => {
-    let cancelled = false;
-  
-    (async () => {
-      if (!open || !selected) return;
-  
-      // If we already have rich details, skip.
-      if (hasRichDetails(selected.raw ?? selected)) return;
-  
-      const id = selected._id ?? selected.id;
-      if (!id) return;
-  
-      try {
-        setDetailsError(null);
-        setDetailsLoading(true);
-  
-        const full = await fetchFullPatientById(id);
-        if (cancelled) return;
-  
-        // Recompute stage/diagnosis if needed
-        const rawStage = full?.target ?? full?.prediction ?? full?.risk ?? full?.label;
-        const computedStage = prettyTarget(rawStage);
-        const computedDx =
-          (typeof full?.diagnosis === "string" && full.diagnosis.trim() !== "")
-            ? full.diagnosis
-            : (computedStage ?? selected.diagnosis);
-  
-        setSelected(prev => prev && ({
-          ...prev,
-          stage: prev.stage ?? computedStage,
-          diagnosis: prev.diagnosis ?? computedDx,
-          raw: full, // 🔑 now modal has the full 31 fields
-          vitals: {
-            bmi: prev.vitals?.bmi ?? asNum(full?.body_mass_index_bmi) ?? null,
-            egfr: prev.vitals?.egfr ?? asNum(full?.estimated_glomerular_filtration_rate_egfr) ?? null,
-            hemoglobin: prev.vitals?.hemoglobin ?? asNum(full?.hemoglobin_level_gms) ?? null,
-          },
-        }));
-      } catch (e: any) {
-        if (!cancelled) setDetailsError(e?.message || "Failed to load details");
-      } finally {
-        if (!cancelled) setDetailsLoading(false);
-      }
-    })();
-  
-    return () => { cancelled = true; };
-  }, [open, selected]);
-  
-  /* =========================================================
-     TAB 2: Explore (cohort search)
-  ========================================================= */
-  const [patients, setPatients] = useState<PatientCard[]>([]);
-  const [total, setTotal] = useState<number>(0);
-  const [kpi, setKpi] = useState({
-    avgEgfr: null as number | null,
-    medBmi: null as number | null,
-    pctSmokers: null as number | null,
-    pctDiabetes: null as number | null,
-    pctHyperten: null as number | null,
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const [activityLevel, setActivityLevel] = useState<"low" | "moderate" | "high" | null>("low");
-  const [familyHistory, setFamilyHistory] = useState<"any" | "yes" | "no">("any");
+    const res = await fetch(`${API_BASE}/search/cohort`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-  // const [gender, setGender] = useState<"all" | "male" | "female">("all");
-  const [ageMin, setAgeMin] = useState<string>("");
-  const [ageMax, setAgeMax] = useState<string>("");
-  const [smoking, setSmoking] = useState<"any" | "yes" | "no">("any");
-  const [diabetes, setDiabetes] = useState<"any" | "yes" | "no">("any");
-  const [hypertension, setHypertension] = useState<"any" | "yes" | "no">("any");
-  const [ckd, setCkd] = useState<"no_disease" | "low" | "moderate" | "high" | "any">("any");
+    const data = await res.json();
 
-  // const [actLow, setActLow] = useState(true);
-  // const [actMed, setActMed] = useState(true);
-  // const [actHigh, setActHigh] = useState(true);
+    setTotal(data.total ?? 0);
+    setKpi({
+      avgEgfr: data.summary?.avgEgfr ?? null,
+      medBmi: data.summary?.medBmi ?? null,
+      pctSmokers: data.summary?.pctSmokers ?? null,
+      pctDiabetes: data.summary?.pctDiabetes ?? null,
+      pctHyperten: data.summary?.pctHyperten ?? null,
+    });
 
-  // const activityArray = useMemo(() => {
-  //   const arr: string[] = [];
-  //   if (actLow) arr.push("low");
-  //   if (actMed) arr.push("moderate");
-  //   if (actHigh) arr.push("high");
-  //   return arr;
-  // }, [actLow, actMed, actHigh]);
+    const examples: any[] = Array.isArray(data.examples) ? data.examples : [];
+    const normalized = examples.map((e, i) => normalizePatient(e, i));
+    setPatients(normalized);
+  } catch (e: any) {
+    setError(e?.message || "Cohort search failed");
+  } finally {
+    setLoading(false);
+  }
+}, [familyHistory, ageMin, ageMax, smoking, diabetes, hypertension, ckd, activityLevel]);
 
-  const booleanChoice = (v: "any" | "yes" | "no") =>
-    v === "yes" ? true : v === "no" ? false : undefined;
+useEffect(() => { fetchCohort(); }, [fetchCohort]);
 
-    const fetchCohort = useCallback(async () => {
-      try {
-        setLoading(true);
-        setError(null);
-    
-        // Prepare the body for the request based on the updated filters
-        const body = {
-          filters: {
-            familyHistory, // Replace gender with familyHistory
-            age: { min: toNum(ageMin), max: toNum(ageMax) },
-            smoking: booleanChoice(smoking),
-            diabetes: booleanChoice(diabetes),
-            hypertension: booleanChoice(hypertension),
-            ckd: ckd === "any" ? undefined : ckd, // CKD stages: "low", "moderate", "high"
-            activity: activityLevel ? [activityLevel] : [], // Only one activity level
-          },
-          sampleLimit: 12,
-        };
-    
-        const res = await fetch(`${API_BASE}/search/cohort`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-    
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-    
-        setTotal(data.total ?? 0);
-        setKpi({
-          avgEgfr: data.summary?.avgEgfr ?? null,
-          medBmi: data.summary?.medBmi ?? null,
-          pctSmokers: data.summary?.pctSmokers ?? null,
-          pctDiabetes: data.summary?.pctDiabetes ?? null,
-          pctHyperten: data.summary?.pctHyperten ?? null,
-        });
-    
-        const examples: any[] = Array.isArray(data.examples) ? data.examples : [];
-        const normalized = examples.map((e, i) => normalizePatient(e, i));
-        setPatients(normalized);
-      } catch (e: any) {
-        setError(e?.message || "Cohort search failed");
-      } finally {
-        setLoading(false);
-      }
-    }, [familyHistory, ageMin, ageMax, smoking, diabetes, hypertension, ckd, activityLevel]);
-    
+const albuminLabel = (v: any) => {
+  if (v == null) return "—";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  // 0 none, 1 trace, 2 moderate, 3 high (4 if ever present → very high)
+  return ["None", "Trace", "Moderate", "High", "Very high"][Math.max(0, Math.min(4, Math.round(n)))] || "—";
+};
 
-  useEffect(() => { fetchCohort(); }, [fetchCohort]);
-// Raw → label mapping for the 31 fields we store in Mongo
-const RAW_FIELDS: Array<{ key: string; label: string; type?: "yn" | "text" }> = [
+const RAW_FIELDS: Array<{ key: string; label: string; type?: "yn" | "text" | "albumin" }> = [
   { key: "age_of_the_patient", label: "Age" },
   { key: "smoking_status", label: "Smoking status", type: "yn" },
-  { key: "diabetes_mellitus_yesno", label: "Diabetes (Y/N)", type: "yn" },
-  { key: "hypertension_yesno", label: "Hypertension (Y/N)", type: "yn" },
+
   { key: "physical_activity_level", label: "Physical activity" },
   { key: "family_history_of_chronic_kidney_disease", label: "Family history of CKD", type: "yn" },
   { key: "body_mass_index_bmi", label: "BMI" },
   { key: "duration_of_diabetes_mellitus_years", label: "Duration of diabetes (yrs)" },
   { key: "duration_of_hypertension_years", label: "Duration of hypertension (yrs)" },
   { key: "coronary_artery_disease_yesno", label: "Coronary artery disease (Y/N)", type: "yn" },
+
   { key: "serum_creatinine_mgdl", label: "Serum creatinine (mg/dL)" },
   { key: "estimated_glomerular_filtration_rate_egfr", label: "eGFR" },
   { key: "blood_urea_mgdl", label: "Blood urea (mg/dL)" },
-  { key: "hemoglobin_level_gms", label: "Hemoglobin (g/dL)" },
   { key: "sodium_level_meql", label: "Sodium (mEq/L)" },
   { key: "potassium_level_meql", label: "Potassium (mEq/L)" },
-  { key: "serum_albumin_level", label: "Serum albumin" },
-  { key: "cholesterol_level", label: "Cholesterol" },
   { key: "random_blood_glucose_level_mgdl", label: "Random blood glucose (mg/dL)" },
-  { key: "cystatin_c_level", label: "Cystatin C" },
-  { key: "albumin_in_urine", label: "Albumin in urine" },
-  { key: "urine_proteintocreatinine_ratio", label: "Urine protein/creatinine ratio" },
-  { key: "specific_gravity_of_urine", label: "Specific gravity (urine)" },
-  { key: "red_blood_cells_in_urine", label: "RBC in urine" },
-  { key: "pus_cells_in_urine", label: "Pus cells in urine" },
-  { key: "bacteria_in_urine", label: "Bacteria in urine" },
-  { key: "blood_pressure_mmhg", label: "Blood pressure (mmHg)" },
+
+  { key: "albumin_in_urine", label: "Urine albumin", type: "albumin" }, // ✅ NEW
+
   { key: "appetite_goodpoor", label: "Appetite" },
-  { key: "pedal_edema_yesno", label: "Pedal edema (Y/N)", type: "yn" },
-  { key: "anemia_yesno", label: "Anemia (Y/N)", type: "yn" },
   { key: "target", label: "Target / Diagnosis" },
 ];
+
 const [detailsLoading, setDetailsLoading] = useState(false);
 const [detailsError, setDetailsError] = useState<string | null>(null);
+
 
   /* ---------- Segmented tabs UI ---------- */
   const SegTabs = () => (
@@ -890,16 +921,17 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
   
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
                   {/* CKD Stage */}
-                  <Select value={ckd} onValueChange={(v: any) => setCkd(v)}>
-                    <SelectTrigger><SelectValue placeholder="Select CKD Stage" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="any">Any CKD Stage</SelectItem>
-                      <SelectItem value="no_disease">CKD: No Disease</SelectItem>
-                      <SelectItem value="low_risk">CKD: Low Risk</SelectItem>
-                      <SelectItem value="moderate_risk">CKD: Moderate Risk</SelectItem>
-                      <SelectItem value="high_risk">CKD: High Risk</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <Select value={ckd} onValueChange={(v: any) => setCkd(v)}>
+                  <SelectTrigger><SelectValue placeholder="Select CKD Stage" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any CKD Stage</SelectItem>
+                    <SelectItem value="no_disease">CKD: No Disease</SelectItem>
+                    <SelectItem value="low_risk">CKD: Low Risk</SelectItem>
+                    <SelectItem value="moderate_risk">CKD: Moderate Risk</SelectItem>
+                    <SelectItem value="high_risk">CKD: High Risk</SelectItem>
+                    <SelectItem value="severe_disease">CKD: Severe Disease</SelectItem>
+                  </SelectContent>
+                </Select>
   
                   {/* Activity Level - Only One Selection Allowed */}
                   <div className="col-span-2 text-sm rounded-lg border border-emerald-100 p-3 bg-emerald-50/40">
@@ -977,29 +1009,38 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
                     {selected.diagnosis && (
                       <div className="flex items-center gap-2">
                         <Heart className="h-5 w-5 text-rose-500" />
-                        <span className="font-medium text-slate-800">{selected.diagnosis}</span>
+                        <span className="font-medium text-slate-800">
+                          {prettyStage(selected.diagnosis) ?? selected.diagnosis}
+                        </span>
                       </div>
                     )}
   
-                    {selected.vitals && (
-                      <div>
-                        <h4 className="text-sm font-semibold mb-2 text-slate-900">Vitals</h4>
-                        <div className="grid grid-cols-3 gap-3 text-sm">
-                          <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
-                            <div className="text-xs text-emerald-700/90">BMI</div>
-                            <div className="font-medium text-slate-900">{selected.vitals.bmi ?? "—"}</div>
-                          </div>
-                          <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
-                            <div className="text-xs text-emerald-700/90">eGFR</div>
-                            <div className="font-medium text-slate-900">{selected.vitals.egfr ?? "—"}</div>
-                          </div>
-                          <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
-                            <div className="text-xs text-emerald-700/90">Hemoglobin</div>
-                            <div className="font-medium text-slate-900">{selected.vitals.hemoglobin ?? "—"}</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+  {selected.vitals && (
+  <div>
+    <h4 className="text-sm font-semibold mb-2 text-slate-900">Vitals</h4>
+    <div className="grid grid-cols-3 gap-3 text-sm">
+      <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+        <div className="text-xs text-emerald-700/90">BMI</div>
+        <div className="font-medium text-slate-900">
+          {fmtNum(selected.vitals.bmi) ?? "—"}
+        </div>
+      </div>
+      <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+        <div className="text-xs text-emerald-700/90">eGFR</div>
+        <div className="font-medium text-slate-900">
+          {fmtNum(selected.vitals.egfr) ?? "—"}
+        </div>
+      </div>
+      <div className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+        <div className="text-xs text-emerald-700/90">Blood Urea</div>
+        <div className="font-medium text-slate-900">
+          {fmtNum(selected.vitals.bloodUrea) ?? "—"}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
   
                     {(() => {
                       const details = buildDetails(selected.raw ?? selected);
@@ -1007,16 +1048,25 @@ const [detailsError, setDetailsError] = useState<string | null>(null);
                         <div>
                           <h4 className="text-sm font-semibold mb-2 text-slate-900">Clinical details</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {RAW_FIELDS.map(({ key, label, type }) => {
-                              const v = (details as any)[key];
-                              const display = type === "yn" ? yesNo(v) : fmt(v);
-                              return (
-                                <div key={key} className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
-                                  <div className="text-xs text-emerald-700/90">{label}</div>
-                                  <div className="font-medium text-slate-900">{display}</div>
-                                </div>
-                              );
-                            })}
+                          {RAW_FIELDS.map(({ key, label, type }) => {
+                          const v = (details as any)[key];
+
+                          const display =
+                            type === "yn"
+                              ? yesNo(v)
+                              : type === "albumin"
+                              ? albuminLabel(v)
+                              : TWO_DP_FIELDS.has(key)
+                              ? fmtNum(v, 2)
+                              : fmt(v); // default string-ish fallback
+
+                          return (
+                            <div key={key} className="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+                              <div className="text-xs text-emerald-700/90">{label}</div>
+                              <div className="font-medium text-slate-900">{display}</div>
+                            </div>
+                          );
+                        })}
                           </div>
                         </div>
                       );

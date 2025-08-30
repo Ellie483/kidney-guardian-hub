@@ -43,6 +43,7 @@ app.use("/patients", patientRoutes); // GET /patients, POST /patients/similar
 app.use("/search",  searchRoutes);   // POST /search/cohort
 app.use("/users",   userRoutes);     // POST /users, POST /users/login, GET /users/me, GET /users
 app.use("/admin",   adminRoutes);
+
 // health
 app.get("/health", (_req, res) => res.json({ ok: true }));
 

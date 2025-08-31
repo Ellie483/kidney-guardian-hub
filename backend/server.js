@@ -11,6 +11,9 @@ const analysisRoutes = require("./routes/analysis.routes");
 const searchRoutes  = require("./routes/search.routes");
 const userRoutes    = require("./routes/users.routes");
 const adminRoutes  = require("./routes/admin.routes"); 
+const mythfactRoutes = require("./routes/mythfact.routes")
+const adminDataRoutes = require("./routes/admin.data.routes");
+
 const app = express();
 
 /* ---------- middleware ---------- */
@@ -21,6 +24,7 @@ app.use(cors({
 // --- core middleware
 app.use(express.json());
 app.use(cookieParser());
+app.use(express.json({ limit: "10mb" }));
 
 // CORS for Vite @ 8080 → Node @ 5000
 app.use(cors({
@@ -43,6 +47,8 @@ app.use("/patients", patientRoutes); // GET /patients, POST /patients/similar
 app.use("/search",  searchRoutes);   // POST /search/cohort
 app.use("/users",   userRoutes);     // POST /users, POST /users/login, GET /users/me, GET /users
 app.use("/admin",   adminRoutes);
+app.use("/mythfact", mythfactRoutes)
+app.use("/admin", adminDataRoutes);
 // health
 app.get("/health", (_req, res) => res.json({ ok: true }));
 

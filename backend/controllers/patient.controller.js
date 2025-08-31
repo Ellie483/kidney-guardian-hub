@@ -1,13 +1,13 @@
 // backend/controllers/patient.controller.js
 const crypto = require("crypto");
-const Patient = require("../models/patient.model");     // patient docs collection
-const User = require("../models/users.model");          // your users collection
-const SimilarCache = require("../models/similarCache.model"); // optional cache
+const Patient = require("../models/patient.model");
+const User = require("../models/users.model");
+const SimilarCache = require("../models/similarCache.model");
 const { gowerSim, val } = require("../utils/gower");
+const { rankTopSimilar, printRankTable, printBreakdownRow } = require("../utils/gower");
 
 // ----------------------- feature config -----------------------
 const FEATURE_VERSION = "gower.v1";
-// keys use dot-paths that `val(obj, path)` can resolve
 const FEATURES_TEMPLATE = [
   { type: "num", key: "age",         min: 18, max: 90,  w: 0.8 },
   { type: "num", key: "vitals.bmi",  min: 12, max: 60,  w: 0.7 },
@@ -16,20 +16,43 @@ const FEATURES_TEMPLATE = [
   { type: "bin", key: "lifestyle.highBP",   w: 1.2 },
   { type: "bin", key: "lifestyle.smokes",   w: 1.2 },
   { type: "cat", key: "gender",             w: 0.4 },
-  { key: 'lifestyle.activity', type: 'cat', w: 1 } 
+  { type: "cat", key: "lifestyle.activity", w: 1.0 },
 ];
 
 // ----------------------- helpers -----------------------
+function normActivity(v) {
+  if (!v) return null;
+  const s = String(v).trim().toLowerCase();
+  if (["low","sedentary","light","none"].includes(s)) return "low";
+  if (["moderate","medium","normal","moderately active"].includes(s)) return "moderate";
+  if (["high","active","vigorous","very active"].includes(s)) return "high";
+  return null;
+}
+function feetInchesToMeters(feet, inches) {
+  const f = Number(feet), i = Number(inches);
+  if (!Number.isFinite(f) && !Number.isFinite(i)) return undefined;
+  const totalIn = (Number.isFinite(f) ? f : 0) * 12 + (Number.isFinite(i) ? i : 0);
+  return totalIn > 0 ? totalIn * 0.0254 : undefined;
+}
+function lbsToKg(lb) {
+  const n = Number(lb);
+  return Number.isFinite(n) ? n * 0.45359237 : undefined;
+}
+function bmiFrom(heightMeters, weightKg) {
+  return (Number.isFinite(heightMeters) && heightMeters > 0 && Number.isFinite(weightKg))
+    ? (weightKg / (heightMeters * heightMeters))
+    : undefined;
+}
+
 const toBool = (v) => {
   if (v === true || v === false) return v;
   if (v == null) return undefined;
   if (typeof v === "number") return v !== 0;
   const s = String(v).trim().toLowerCase();
-  if (["1", "true", "t", "yes", "y"].includes(s)) return true;
-  if (["0", "false", "f", "no", "n"].includes(s)) return false;
+  if (["1","true","t","yes","y"].includes(s)) return true;
+  if (["0","false","f","no","n"].includes(s)) return false;
   return undefined;
 };
-
 const toNum = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
@@ -41,11 +64,28 @@ function stageFromEgfr(egfr) {
   if (egfr >= 60) return "Stage 2";
   if (egfr >= 45) return "Stage 3a";
   if (egfr >= 30) return "Stage 3b";
+  return "Stage 4/5";
 }
-// --- activity getter (top-level helper) ---
+function toNormFromPatientDoc(p) {
+  return {
+    _id: p._id,
+    age: toNum(p.age) ?? toNum(p.age_of_the_patient) ?? null,
+    gender: (p.gender || p.sex || "").toLowerCase() || null,
+    lifestyle: {
+      diabetic: !!(p.diabetes_mellitus_yesno ?? (p.lifestyle?.diabetic)),
+      highBP:   !!(p.hypertension_yesno ?? (p.lifestyle?.highBP)),
+      smokes:   !!(p.smoking_status ?? (p.lifestyle?.smokes)),
+      activity: normActivity(p.physical_activity_level ?? p.lifestyle?.activity ?? null),
+    },
+    vitals: {
+      egfr: toNum(p.vitals?.egfr) ?? toNum(p.estimated_glomerular_filtration_rate_egfr) ?? null,
+      bmi:  toNum(p.vitals?.bmi)  ?? toNum(p.body_mass_index_bmi) ?? null,
+    },
+  };
+}
+
 function getActivity(doc) {
   const d = doc || {};
-  // prefer normalized → raw fallbacks
   return (
     (d.lifestyle && (d.lifestyle.activity || d.lifestyle.activityLevel)) ||
     d.activityLevel ||
@@ -54,52 +94,40 @@ function getActivity(doc) {
       (d.raw.lifestyle && (d.raw.lifestyle.activity || d.raw.lifestyle.activityLevel)) ||
       d.raw.physical_activity_level
     )) ||
-    (d.__raw && ( // if you pass __raw around
+    (d.__raw && (
       (d.__raw.lifestyle && (d.__raw.lifestyle.activity || d.__raw.lifestyle.activityLevel)) ||
       d.__raw.physical_activity_level
     )) ||
     null
   );
 }
-/**
- * Normalize a patient document into unified fields used by UI + Gower.
- * Works for:
- *  - already-normalized doc (with vitals/lifestyle)
- *  - raw dataset fields (body_mass_index_bmi, ..._egfr, ..._gms, diabetes_mellitus_yesno, etc.)
- */
-function normalizePatientDoc(p, index = 0) {
-  const age =
-    toNum(p.age) ??
-    toNum(p.age_of_the_patient);
 
+function buildHardFilterFromUser(u) {
+  const filt = {};
+  if (u?.smoke === "No") filt["lifestyle.smokes"] = { $in: [false, null] };
+
+  const hasDiab = (u?.medicalConditions || []).includes("Diabetes");
+  if (!hasDiab) filt["lifestyle.diabetic"] = { $in: [false, null] };
+
+  const hasHTN = (u?.medicalConditions || []).includes("Hypertension");
+  if (!hasHTN) filt["lifestyle.highBP"] = { $in: [false, null] };
+
+  return filt;
+}
+
+function normalizePatientDoc(p, index = 0) {
+  const age = toNum(p.age) ?? toNum(p.age_of_the_patient);
   const gender = (p.gender || p.sex || "").toString().toLowerCase() || null;
 
-  const bmi =
-    toNum(p?.vitals?.bmi) ??
-    toNum(p.body_mass_index_bmi);
+  const bmi  = toNum(p?.vitals?.bmi)  ?? toNum(p.body_mass_index_bmi);
+  const egfr = toNum(p?.vitals?.egfr) ?? toNum(p.estimated_glomerular_filtration_rate_egfr);
+  const hemoglobin = toNum(p?.vitals?.hemoglobin) ?? toNum(p.hemoglobin_level_gms);
 
-  const egfr =
-    toNum(p?.vitals?.egfr) ??
-    toNum(p.estimated_glomerular_filtration_rate_egfr);
+  const diabetic = toBool(p?.lifestyle?.diabetic) ?? toBool(p.diabetes_mellitus_yesno);
+  const highBP   = toBool(p?.lifestyle?.highBP)   ?? toBool(p.hypertension_yesno);
+  const smokes   = toBool(p?.lifestyle?.smokes)   ?? toBool(p.smoking_status);
+  const activity = normActivity(getActivity(p));
 
-  const hemoglobin =
-    toNum(p?.vitals?.hemoglobin) ??
-    toNum(p.hemoglobin_level_gms);
-
-  const diabetic =
-    toBool(p?.lifestyle?.diabetic) ??
-    toBool(p.diabetes_mellitus_yesno);
-
-  const highBP =
-    toBool(p?.lifestyle?.highBP) ??
-    toBool(p.hypertension_yesno);
-
-  const smokes =
-    toBool(p?.lifestyle?.smokes) ??
-    toBool(p.smoking_status);
-
-  const activity = getActivity(p);
-    
   const vitals = {
     bmi: Number.isFinite(bmi) ? bmi : null,
     egfr: Number.isFinite(egfr) ? egfr : null,
@@ -110,8 +138,8 @@ function normalizePatientDoc(p, index = 0) {
     diabetic: typeof diabetic === "boolean" ? diabetic : null,
     highBP: typeof highBP === "boolean" ? highBP : null,
     smokes: typeof smokes === "boolean" ? smokes : null,
-    activity,              // for FEATURES_TEMPLATE 'lifestyle.activity'
-    activityLevel: activity, // for UI/pack31 convenience
+    activity,
+    activityLevel: activity,
   };
 
   const stage = p.stage || stageFromEgfr(vitals.egfr);
@@ -135,44 +163,17 @@ function normalizePatientDoc(p, index = 0) {
     riskFactors,
     improvements: Array.isArray(p.improvements) ? p.improvements : [],
     labFlags: Array.isArray(p.labFlags) ? p.labFlags : [],
-    // raw for scoring (retain original fields too)
     __raw: p,
   };
 }
 
-// optional: hard rules based on the signup user
-function buildHardFilterFromUser(u) {
-  const filt = {};
-  // prefer non-CKD when user likely has no CKD
-  if (!u?.vitals?.egfr || u.vitals.egfr >= 60) {
-    // don't hard filter eGFR here; leave it soft. But you can uncomment:
-    // filt["vitals.egfr"] = { $gte: 30 }; // example soft-ish hard filter
-  }
-  if (u?.smoke === "No") filt["lifestyle.smokes"] = { $in: [false, null] };
-
-  const hasDiab = (u?.medicalConditions || []).includes("Diabetes");
-  if (!hasDiab) filt["lifestyle.diabetic"] = { $in: [false, null] };
-
-  const hasHTN = (u?.medicalConditions || []).includes("Hypertension");
-  if (!hasHTN) filt["lifestyle.highBP"] = { $in: [false, null] };
-
-  return filt;
-}
-
 function makeSignature(payload) {
   const str = JSON.stringify(payload);
-  return `${FEATURE_VERSION}:${crypto
-    .createHash("sha1")
-    .update(str)
-    .digest("hex")}`;
+  return `${FEATURE_VERSION}:${crypto.createHash("sha1").update(str).digest("hex")}`;
 }
 
-// Keep only the 31 UI fields the modal needs (names match your frontend)
-// Keep only the 31 UI fields the modal needs (names match your frontend)
 function pack31(p) {
-  // IMPORTANT: prefer the original mongo doc if present
   const src = p?.__raw ? p.__raw : p;
-
   return {
     age_of_the_patient: src.age_of_the_patient ?? src.age ?? p.age ?? null,
     smoking_status: src.smoking_status ?? p?.lifestyle?.smokes ?? null,
@@ -209,9 +210,7 @@ function pack31(p) {
   };
 }
 
-
 // ----------------------- controllers -----------------------
-// GET /patients/:id
 exports.getPatientById = async (req, res) => {
   try {
     const id = req.params.id;
@@ -223,7 +222,6 @@ exports.getPatientById = async (req, res) => {
   }
 };
 
-// POST /patients/details  { ids: [...] }  (optional batch)
 exports.getPatientsDetails = async (req, res) => {
   try {
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
@@ -235,7 +233,6 @@ exports.getPatientsDetails = async (req, res) => {
   }
 };
 
-// GET /patients  (debug: list a few raw docs)
 exports.listPatients = async (req, res) => {
   try {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 12));
@@ -247,8 +244,9 @@ exports.listPatients = async (req, res) => {
   }
 };
 
-// POST /patients/similar
-// body: { userId?: string, profile?: object, limit?: number }
+// ---------------- getSimilarPatients (with cache INSIDE function) -----------
+
+
 exports.getSimilarPatients = async (req, res) => {
   try {
     const { userId, profile, limit = 12 } = req.body || {};
@@ -261,42 +259,128 @@ exports.getSimilarPatients = async (req, res) => {
     }
     if (!user) return res.status(400).json({ error: "userId or profile required" });
 
-    // normalize a "user-like" object into same shape as patient for Gower
+    const hM  = feetInchesToMeters(user.heightFeet, user.heightInches);
+    const wKg = lbsToKg(user.weight ?? user.weightLb);
+    const derivedBmi = bmiFrom(hM, wKg);
+
+    // 2) normalize user
     const normUser = {
       age: toNum(user.age) ?? null,
       gender: (user.gender || "").toLowerCase() || null,
       lifestyle: {
         diabetic: (user.medicalConditions || []).includes("Diabetes"),
         highBP:   (user.medicalConditions || []).includes("Hypertension"),
-        smokes:   user.smokeAlcohol === "Yes",
-        activity: (user?.lifestyle?.activity ||
-                   user?.activityLevel ||
-                   user?.physical_activity_level || null)?.toString().toLowerCase()
+        smokes:   String(user.smoke ?? user.smokeAlcohol ?? "").trim().toLowerCase() === "yes",
+        familyHistoryCKD: String(user.familyHistory ?? "").trim().toLowerCase() === "yes",
+        activity: normActivity(
+          (user?.lifestyle?.activity ||
+           user?.activityLevel ||
+           user?.physical_activity_level ||
+           user?.physicalActivity ||  // your signup field
+           null)
+        )
       },
       vitals: {
         egfr: toNum(user?.vitals?.egfr) ?? null,
-        bmi:  toNum(user?.vitals?.bmi)  ?? null,
+        bmi:  toNum(user?.vitals?.bmi)  ?? (Number.isFinite(derivedBmi) ? Number(derivedBmi.toFixed(1)) : null),
       },
       medicalConditions: user.medicalConditions || [],
       smoke: user.smoke,
     };
-    
 
-    // 2) candidate pool
+    // 3) preSignature for cache (ONLY user + limit + feature version)
+    const preSigPayload = { FEATURE_VERSION, limit: Number(limit) || 12, user: normUser };
+    const preSignature = makeSignature(preSigPayload);
+
+    // 4) cache check
+    if (SimilarCache && SimilarCache.findOne) {
+      const cached = await SimilarCache.findOne({
+        userId: String(userId || "profile"),
+        signature: preSignature
+      }).lean();
+      if (cached && Array.isArray(cached.cards) && cached.cards.length) {
+        return res.json({ results: cached.cards, signature: preSignature, cache: "hit" });
+      }
+    }
+
+    // 5) candidate pool
     const hard = buildHardFilterFromUser(normUser);
     let candidates = await Patient.find(hard).lean();
-    if (!candidates.length) {
-      // fall back to entire pool if hard filter was too strict
-      candidates = await Patient.find().lean();
-    }
-    if (!candidates.length) {
-      return res.json({ results: [], signature: "empty:candidates" });
-    }
+    if (!candidates.length) candidates = await Patient.find().lean();
+    if (!candidates.length) return res.json({ results: [], signature: preSignature });
 
-    // 3) normalize candidates (so all scoring uses same fields)
+    // ---------------- STRICT FILTERS (before scoring) ----------------
+const wantSmokes = normUser?.lifestyle?.smokes;
+const wantFHx    = normUser?.lifestyle?.familyHistoryCKD;
+const wantDiab   = normUser?.lifestyle?.diabetic;
+const wantHighBP = normUser?.lifestyle?.highBP;
+
+const wantAct = normUser?.lifestyle?.activity;      // "low" | "moderate" | "high" | null
+const wantBMI = toNum(normUser?.vitals?.bmi);       // number | NaN
+const wantAge = toNum(normUser?.age);               // number | NaN
+
+const AGE_BAND = 8;     // years
+const BMI_BAND = 3;     // ± kg/m² band
+
+// normalize booleans coming from various stored forms
+const asBool = (v) => {
+  if (v === true || v === false) return v;
+  if (v == null) return null;
+  if (typeof v === "number") return v !== 0;
+  const s = String(v).trim().toLowerCase();
+  if (["1","true","t","yes","y"].includes(s)) return true;
+  if (["0","false","f","no","n"].includes(s)) return false;
+  return null;
+};
+
+candidates = candidates.filter((p) => {
+  // ---- strict binary matches when user specified them ----
+  if (typeof wantDiab === "boolean") {
+    const pd = asBool(p.diabetes_mellitus_yesno ?? p.lifestyle?.diabetic);
+    if (pd == null || pd !== wantDiab) return false;
+  }
+  if (typeof wantHighBP === "boolean") {
+    const ph = asBool(p.hypertension_yesno ?? p.lifestyle?.highBP);
+    if (ph == null || ph !== wantHighBP) return false;
+  }
+  if (typeof wantSmokes === "boolean") {
+    const ps = asBool(p.smoking_status ?? p.lifestyle?.smokes);
+    if (ps == null || ps !== wantSmokes) return false;
+  }
+  if (typeof wantFHx === "boolean") {
+    const pfh = asBool(p.family_history_of_chronic_kidney_disease ?? p.lifestyle?.familyHistoryCKD);
+    if (pfh == null || pfh !== wantFHx) return false;
+  }
+
+  // ---- strict activity match (if user provided) ----
+  if (wantAct) {
+    const pActRaw = p?.lifestyle?.activity ?? p?.lifestyle?.activityLevel ?? p?.physical_activity_level ?? null;
+    const pAct = normActivity(pActRaw); // your helper that returns 'low'|'moderate'|'high'|null
+    if (!pAct || pAct !== wantAct) return false;
+  }
+
+  // ---- BMI ± band (only if both sides have BMI) ----
+  if (Number.isFinite(wantBMI)) {
+    const pBMI = toNum(p?.vitals?.bmi ?? p?.body_mass_index_bmi);
+    if (Number.isFinite(pBMI)) {
+      if (pBMI < wantBMI - BMI_BAND || pBMI > wantBMI + BMI_BAND) return false;
+    }
+  }
+
+  // ---- Age ± band (only if both sides have age) ----
+  if (Number.isFinite(wantAge)) {
+    const pAge = toNum(p.age ?? p.age_of_the_patient);
+    if (Number.isFinite(pAge)) {
+      if (Math.abs(pAge - wantAge) > AGE_BAND) return false;
+    }
+  }
+
+  return true;
+});
+// -----------------------------------------------------------------
+
+    // 6) normalize + compute ranges
     const normalized = candidates.map(normalizePatientDoc);
-
-    // 4) compute numeric feature ranges from candidates for fair scaling
     const features = FEATURES_TEMPLATE.map(f => ({ ...f }));
     for (const f of features) {
       if (f.type !== "num") continue;
@@ -312,30 +396,47 @@ exports.getSimilarPatients = async (req, res) => {
       }
     }
 
-    // 5) score with Gower + optional soft penalties
+    // 7) score with Gower (+ optional soft penalty)
     const scored = normalized.map((p) => {
-      let s = gowerSim(normUser, p, features); // 0..1
-
-      // Example soft penalty: push down CKD mismatch
+      let s = gowerSim(normUser, p, features);
       const userNoCKD = !normUser?.vitals?.egfr || normUser?.vitals?.egfr >= 60;
       const patCKD = Number.isFinite(p?.vitals?.egfr) && p.vitals.egfr < 60;
-      if (userNoCKD && patCKD) s -= 0.25;
-
+      if (userNoCKD && patCKD) s -= 0.25; // optional soft penalty
       s = Math.max(0, Math.min(1, s));
-      return { p, score: Math.round(s * 100) };
+      return { p, score: Math.round(s * 100) }; // integer percent
     });
 
-    // 6) deterministic sort & top N
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return String(a.p._id).localeCompare(String(b.p._id));
-    });
-
+    scored.sort((a, b) => (b.score - a.score) || String(a.p._id).localeCompare(String(b.p._id)));
     const top = scored.slice(0, Math.min(12, Math.max(1, Number(limit) || 12)));
-/** @param {any} p @returns {string|null} */
 
-     
-     const cards = top.map(({ p, score }) => ({
+    // ========== TERMINAL LOG: Gower top-N ==========
+    try {
+      const rows = top.map(({ p, score }, i) => ({
+        '#': i + 1,
+        id: String(p._id),
+        score: `${score}%`,
+        age: p.age,
+        gender: p.gender,
+        bmi: val(p, "vitals.bmi"),
+        egfr: val(p, "vitals.egfr"),
+        diabetic: val(p, "lifestyle.diabetic"),
+        highBP: val(p, "lifestyle.highBP"),
+        smokes: val(p, "lifestyle.smokes"),
+        activity: val(p, "lifestyle.activity"),
+      }));
+      console.log("\n=== Gower Top Matches ===");
+      console.table(rows);
+
+      // Optional: per-feature breakdown for best match (if you exported printBreakdownRow)
+      if (typeof printBreakdownRow === "function" && top.length > 0) {
+        printBreakdownRow(normUser, top[0].p, features);
+      }
+    } catch (_) {
+      // no-op if console.table or breakdown not available
+    }
+    // ===============================================
+
+    const cards = top.map(({ p, score }) => ({
       _id: p._id,
       name: p.name,
       age: p.age,
@@ -343,11 +444,8 @@ exports.getSimilarPatients = async (req, res) => {
       stage: p.stage,
       diagnosis: p.diagnosis,
       story: p.story,
-      lifestyle: {
-        ...p.lifestyle,
-        activity: getActivity(p)   // ensure it’s present inside lifestyle
-      },
-      activityLevel: getActivity(p), // convenient top-level field for UI
+      lifestyle: { ...p.lifestyle, activity: getActivity(p) },
+      activityLevel: getActivity(p),
       riskFactors: p.riskFactors,
       improvements: p.improvements,
       vitals: p.vitals,
@@ -355,34 +453,15 @@ exports.getSimilarPatients = async (req, res) => {
       matchScore: score,
       raw: pack31(p),
     }));
-    
 
-    // quick debug — you should see real numbers now
-    console.log("Similar top3 preview:",
-      cards.slice(0, 3).map(c => ({
-        _id: c._id,
-        bmi: c?.vitals?.bmi,
-        egfr: c?.vitals?.egfr,
-        hgb: c?.vitals?.hemoglobin,
-        score: c.matchScore
-      }))
-    );
-
-    // 8) cache by signature (optional)
-    const sigPayload = {
-      normUser,
-      features: features.map(f => ({ key: f.key, w: f.w, type: f.type, min: f.min, max: f.max })),
-      limit: Number(limit) || 12,
-    };
-    const signature = makeSignature(sigPayload);
-
+    // 8) save to cache with the *same* preSignature
     if (SimilarCache && SimilarCache.findOneAndUpdate) {
       await SimilarCache.findOneAndUpdate(
-        { userId: String(userId || "profile"), signature },
+        { userId: String(userId || "profile"), signature: preSignature },
         {
           $set: {
             userId: String(userId || "profile"),
-            signature,
+            signature: preSignature,
             results: top.map(({ p, score }) => ({ patientId: String(p._id), score })),
             cards,
           },
@@ -391,7 +470,7 @@ exports.getSimilarPatients = async (req, res) => {
       );
     }
 
-    res.json({ results: cards, signature });
+    res.json({ results: cards, signature: preSignature, cache: "miss" });
   } catch (e) {
     console.error("getSimilarPatients error:", e);
     res.status(500).json({ error: "Failed to compute similar patients" });

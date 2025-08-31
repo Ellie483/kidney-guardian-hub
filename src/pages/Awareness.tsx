@@ -6,12 +6,57 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Tooltip, Legend, Treemap } from 'recharts';
 import { Brain, ChartBar, Users, TrendingUp, CheckCircle, X, Lightbulb } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
+import { Label } from "@/components/ui/label";
+import PivotTable from "@/components/ui/pivot";
 // Mock data for charts
 const genderData = [
   { name: 'Male', value: 45, patients: 4500 },
   { name: 'Female', value: 55, patients: 5500 }
 ];
+const availableFields = [
+  "age_of_the_patient",
+  "smoking_status",
+  "diabetes_mellitus_yesno",
+  "hypertension_yesno",
+  "physical_activity_level",
+  "family_history_of_chronic_kidney_disease",
+  "body_mass_index_bmi",
+  "duration_of_diabetes_mellitus_years",
+  "duration_of_hypertension_years",
+  "coronary_artery_disease_yesno",
+  "serum_creatinine_mgdl",
+  "estimated_glomerular_filtration_rate_egfr",
+  "blood_urea_mgdl",
+  "sodium_level_meql",
+  "potassium_level_meql",
+  "random_blood_glucose_level_mgdl",
+  "albumin_in_urine",
+  "appetite_goodpoor",
+  "anemia_yesno"
+];
+const fieldLabels = {
+  age_of_the_patient: "Age of Patient",
+  smoking_status: "Smoking Status",
+  diabetes_mellitus_yesno: "Diabetes (Yes/No)",
+  hypertension_yesno: "Hypertension (Yes/No)",
+  physical_activity_level: "Physical Activity Level",
+  family_history_of_chronic_kidney_disease: "Family History of CKD",
+  body_mass_index_bmi: "BMI",
+  duration_of_diabetes_mellitus_years: "Duration of Diabetes (Years)",
+  duration_of_hypertension_years: "Duration of Hypertension (Years)",
+  coronary_artery_disease_yesno: "Coronary Artery Disease (Yes/No)",
+  serum_creatinine_mgdl: "Serum Creatinine (mg/dL)",
+  estimated_glomerular_filtration_rate_egfr: "eGFR (mL/min/1.73m²)",
+  blood_urea_mgdl: "Blood Urea (mg/dL)",
+  sodium_level_meql: "Sodium Level (mEq/L)",
+  potassium_level_meql: "Potassium Level (mEq/L)",
+  random_blood_glucose_level_mgdl: "Random Blood Glucose (mg/dL)",
+  albumin_in_urine: "Albumin in Urine",
+  appetite_goodpoor: "Appetite (Good/Poor)",
+  anemia_yesno: "Anemia (Yes/No)"
+};
+
 
 
 
@@ -103,19 +148,7 @@ const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accen
 export default function Awareness() {
 
   const [insight, setInsight] = useState("");
-  const [revealedMyths, setRevealedMyths] = useState<Set<number>>(new Set());
 
-  const toggleMythReveal = (id: number) => {
-    setRevealedMyths(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-      } else {
-        newSet.add(id);
-      }
-      return newSet;
-    });
-  };
 
   const [ageloading, setAgeLoading] = useState(true); // loading state
 
@@ -218,6 +251,8 @@ export default function Awareness() {
   const [comboLoading, setcomboLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
   const factors = ["All", "Diabetes", "Hypertension", "Smoking", "Low Activity", "Anemia", "CAD", "Obesity"];
+  const [rowField, setRowField] = useState<string | null>(null);
+  const [colField, setColField] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -240,7 +275,7 @@ export default function Awareness() {
       : comboData.filter((item) => item.combination.includes(filter));
 
   // Top 5 or all if "See More" clicked
-  filteredData.sort((a, b) => b.percentage - a.percentage);
+  filteredData?.sort((a, b) => b.percentage - a.percentage);
 
   const [ageLoading, setageLoading] = useState(true);
   const [ageGroupData, setAgeGroupData] = useState([]);
@@ -285,7 +320,7 @@ export default function Awareness() {
       try {
         const res = await fetch("http://localhost:5000/analysis/appetite-age-target"); // Replace with your API endpoint
         const json = await res.json();
-        setAppetiteData(json); 
+        setAppetiteData(json);
       } catch (err) {
         console.error("Error fetching data:", err);
       } finally {
@@ -297,9 +332,53 @@ export default function Awareness() {
   }, []);
 
 
+  const [mythsAndFacts, setMythsAndFacts] = useState([]);
+  const [revealedMyths, setRevealedMyths] = useState(new Set());
+  const [mythloading, setmythLoading] = useState(false);
+  const [filterCategory, setFilterCategory] = useState("all");
 
+  const API_URL = "http://localhost:5000/mythfact";
 
+  // Fetch myths/facts from server
+  const fetchMythsAndFacts = async () => {
+    try {
+      setmythLoading(true);
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      // Map API data to UI format
+      const mappedData = data.map(item => ({
+        id: item._id,
+        statement: item.title,
+        explanation: item.description,
+        isMyth: item.type === "myth",
+        category: item.category
+      }));
+      setMythsAndFacts(mappedData);
+      setmythLoading(false);
+    } catch (err) {
+      console.error(err);
+      setmythLoading(false);
+    }
+  };
 
+  useEffect(() => {
+    fetchMythsAndFacts();
+  }, []);
+
+  // Toggle reveal for a myth/fact
+  const toggleMythReveal = (id) => {
+    setRevealedMyths(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      return newSet;
+    });
+  };
+
+  // Filter myths/facts by category
+  const filteredItems = filterCategory === "all"
+    ? mythsAndFacts
+    : mythsAndFacts.filter(item => item.category === filterCategory);
   return (
     <div className="min-h-screen bg-gradient-dashboard">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -308,7 +387,7 @@ export default function Awareness() {
           <div className="flex justify-center mb-4">
             <Brain className="h-12 w-12 text-primary" />
           </div>
-          <h1 className="text-4xl font-bold mb-4">Did You Know123456?</h1>
+          <h1 className="text-4xl font-bold mb-4">Did You Know?</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Discover eye-opening insights about chronic kidney disease from real patient data and medical research.
           </p>
@@ -322,7 +401,7 @@ export default function Awareness() {
             </TabsTrigger>
             <TabsTrigger value="trends" className="flex items-center space-x-2">
               <TrendingUp className="h-4 w-4" />
-              <span>Trends</span>
+              <span>Customized Table</span>
             </TabsTrigger>
             <TabsTrigger value="myths" className="flex items-center space-x-2">
               <Lightbulb className="h-4 w-4" />
@@ -552,117 +631,158 @@ export default function Awareness() {
                 </div>
               </CardContent>
             </Card>
-             <Card className="shadow-card border-0 animate-slide-up" style={{ animationDelay: '400ms' }}>
-               <div className="rounded-lg border shadow-sm overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Age Group</TableHead>
-            <TableHead>Appetite</TableHead>
-            {appetiteData[0]?.targets.map((t) => (
-              <TableHead key={t.target}>{t.target.replace(/_/g, " ")}</TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {appetiteData.map((row, i) => (
-            <TableRow key={i} style={{ borderLeft: `4px solid ${ageGroupColors[row.age_group]}` }}>
-              <TableCell>{row.age_group}</TableCell>
-              <TableCell className="capitalize">{row.appetite}</TableCell>
-              {row.targets.map((t) => (
-                <TableCell key={t.target}>{t.percentage.toFixed(1)}%</TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-             </Card>
+            <Card className="shadow-card border-0 animate-slide-up" style={{ animationDelay: '400ms' }}>
+              <div className="rounded-lg border shadow-sm overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Age Group</TableHead>
+                      <TableHead>Appetite</TableHead>
+                      {appetiteData[0]?.targets.map((t) => (
+                        <TableHead key={t.target}>{t.target.replace(/_/g, " ")}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {appetiteData.map((row, i) => (
+                      <TableRow key={i} style={{ borderLeft: `4px solid ${ageGroupColors[row.age_group]}` }}>
+                        <TableCell>{row.age_group}</TableCell>
+                        <TableCell className="capitalize">{row.appetite}</TableCell>
+                        {row.targets.map((t) => (
+                          <TableCell key={t.target}>{t.percentage.toFixed(1)}%</TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
 
           </TabsContent>
 
           <TabsContent value="trends" className="space-y-6">
-            <Card className="shadow-card border-0 animate-fade-in">
-              <CardHeader>
-                <CardTitle>CKD Stage Progression Over Time</CardTitle>
-                <CardDescription>How CKD stage distribution has changed (2020-2023)</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={400}>
-                  <LineChart data={stageProgressionData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="year" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="stage1" stroke={COLORS[0]} name="Stage 1" strokeWidth={2} />
-                    <Line type="monotone" dataKey="stage2" stroke={COLORS[1]} name="Stage 2" strokeWidth={2} />
-                    <Line type="monotone" dataKey="stage3" stroke={COLORS[2]} name="Stage 3" strokeWidth={2} />
-                    <Line type="monotone" dataKey="stage4" stroke="#f59e0b" name="Stage 4" strokeWidth={2} />
-                    <Line type="monotone" dataKey="stage5" stroke="#ef4444" name="Stage 5" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-secondary/10 border border-secondary/20 rounded-lg">
-                    <h4 className="font-medium text-secondary mb-2">Positive Trends</h4>
-                    <ul className="text-sm space-y-1">
-                      <li>• Stage 4 & 5 cases decreasing</li>
-                      <li>• Better early detection programs</li>
-                      <li>• Improved diabetes management</li>
-                    </ul>
-                  </div>
-                  <div className="p-4 bg-warning/10 border border-warning/20 rounded-lg">
-                    <h4 className="font-medium text-warning mb-2">Areas of Concern</h4>
-                    <ul className="text-sm space-y-1">
-                      <li>• Stage 2 & 3 cases increasing</li>
-                      <li>• Need more prevention focus</li>
-                      <li>• Lifestyle factors rising</li>
-                    </ul>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Field selection UI */}
+            <div className="flex space-x-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Row Field</label>
+                <select
+                  value={rowField || ""}
+                  onChange={(e) => setRowField(e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                >
+                  <option value="">-- Select Row Field --</option>
+                  {availableFields.map((field) => {
+                    // Disable logic
+                    const isDisabled =
+                      field === colField ||
+                      (field === "duration_of_hypertension_years" && colField === "hypertension_yesno") ||
+                      (field === "hypertension_yesno" && colField === "duration_of_hypertension_years") ||
+                      (field === "duration_of_diabetes_mellitus_years" && colField === "diabetes_mellitus_yesno") ||
+                      (field === "diabetes_mellitus_yesno" && colField === "duration_of_diabetes_mellitus_years");
+
+                    return (
+                      <option key={field} value={field} disabled={isDisabled}>
+                        {fieldLabels[field]}
+                      </option>
+                    );
+                  })}
+                </select>
+
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Column Field</label>
+               <select
+  value={colField || ""}
+  onChange={(e) => setColField(e.target.value)}
+  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+>
+  <option value="">-- Select Column Field --</option>
+  {availableFields.map((field) => {
+    const isDisabled =
+      field === rowField || 
+      (field === "duration_of_hypertension_years" && rowField === "hypertension_yesno") ||
+      (field === "hypertension_yesno" && rowField === "duration_of_hypertension_years") ||
+      (field === "duration_of_diabetes_mellitus_years" && rowField === "diabetes_mellitus_yesno") ||
+      (field === "diabetes_mellitus_yesno" && rowField === "duration_of_diabetes_mellitus_years");
+
+    return (
+      <option key={field} value={field} disabled={isDisabled}>
+        {fieldLabels[field]}
+      </option>
+    );
+  })}
+</select>
+
+
+              </div>
+            </div>
+
+            {/* Pivot Table */}
+            <PivotTable rowField={rowField} colField={colField} fieldLabels={fieldLabels}
+            />
           </TabsContent>
 
           <TabsContent value="myths" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {mythsAndFacts.map((item, index) => (
-                <Card
-                  key={item.id}
-                  className="shadow-card border-0 hover:shadow-hover transition-all duration-300 animate-fade-in cursor-pointer"
-                  style={{ animationDelay: `${index * 100}ms` }}
-                  onClick={() => toggleMythReveal(item.id)}
-                >
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-lg flex-1 pr-4">
-                        "{item.statement}"
-                      </CardTitle>
-                      {revealedMyths.has(item.id) ? (
-                        <Badge
-                          variant={item.isMyth ? "destructive" : "default"}
-                          className="flex items-center space-x-1"
-                        >
-                          {item.isMyth ? <X className="h-3 w-3" /> : <CheckCircle className="h-3 w-3" />}
-                          <span>{item.isMyth ? "MYTH" : "FACT"}</span>
-                        </Badge>
-                      ) : (
-                        <Button variant="outline" size="sm">
-                          Reveal
-                        </Button>
-                      )}
-                    </div>
-                  </CardHeader>
-                  {revealedMyths.has(item.id) && (
-                    <CardContent className="pt-0 animate-fade-in">
-                      <div className={`p-4 rounded-lg border ${item.isMyth ? 'bg-destructive/10 border-destructive/20' : 'bg-secondary/10 border-secondary/20'}`}>
-                        <p className="text-sm">{item.explanation}</p>
-                      </div>
-                    </CardContent>
-                  )}
-                </Card>
-              ))}
+            {/* Category Filter */}
+            <div className="flex items-center space-x-4 mb-4">
+              <Label htmlFor="categoryFilter">Filter by Category:</Label>
+              <select
+                id="categoryFilter"
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="p-2 border border-border rounded-md bg-background"
+              >
+                <option value="all">All</option>
+                <option value="general">General</option>
+                <option value="prevention">Prevention</option>
+                <option value="treatment">Treatment</option>
+                <option value="diet">Diet</option>
+              </select>
             </div>
+
+            {mythloading ? (
+              <p>Loading myths and facts...</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {filteredItems.map((item, index) => (
+                  <Card
+                    key={item.id}
+                    className="shadow-card border-0 hover:shadow-hover transition-all duration-300 animate-fade-in cursor-pointer"
+                    style={{ animationDelay: `${index * 100}ms` }}
+                    onClick={() => toggleMythReveal(item.id)}
+                  >
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <CardTitle className="text-lg flex-1 pr-4">
+                          "{item.statement}"
+                        </CardTitle>
+                        {revealedMyths.has(item.id) ? (
+                          <Badge
+                            variant={item.isMyth ? "destructive" : "default"}
+                            className="flex items-center space-x-1"
+                          >
+                            {item.isMyth ? <X className="h-3 w-3" /> : <CheckCircle className="h-3 w-3" />}
+                            <span>{item.isMyth ? "MYTH" : "FACT"}</span>
+                          </Badge>
+                        ) : (
+                          <Button variant="outline" size="sm">
+                            Reveal
+                          </Button>
+                        )}
+                      </div>
+                    </CardHeader>
+                    {revealedMyths.has(item.id) && (
+                      <CardContent className="pt-0 animate-fade-in">
+                        <div className={`p-4 rounded-lg border ${item.isMyth ? 'bg-destructive/10 border-destructive/20' : 'bg-secondary/10 border-secondary/20'}`}>
+                          <p className="text-sm">{item.explanation}</p>
+                        </div>
+                      </CardContent>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            )}
 
             <Card className="shadow-card border-0 bg-gradient-primary text-primary-foreground">
               <CardContent className="pt-6 text-center">
@@ -670,9 +790,7 @@ export default function Awareness() {
                 <p className="mb-6 opacity-90">
                   Understanding CKD myths and facts helps you make informed decisions about your kidney health.
                 </p>
-                <Button variant="secondary" className="bg-white/20 text-white border-white/20 hover:bg-white/30">
-                  Share These Facts
-                </Button>
+
               </CardContent>
             </Card>
           </TabsContent>

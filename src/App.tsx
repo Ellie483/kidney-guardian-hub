@@ -3,7 +3,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { Navbar } from "@/components/ui/navbar";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
@@ -15,6 +21,7 @@ import LabAnalysis from "./pages/LabAnalysis";
 import Profile from "./pages/Profile";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import Footer from "./pages/Footer";
 
 const queryClient = new QueryClient();
 
@@ -32,16 +39,26 @@ export interface AppUser {
   medicalConditions?: string[];
   bloodType?: string;
   familyHistory?: "Yes" | "No";
-  physicalActivity?: "Low" | "Moderate" | "High";  // ← strict type
+  physicalActivity?: "Low" | "Moderate" | "High";
   smoke?: "Yes" | "No";
   registeredAt?: string;
 }
 
 const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
+// A wrapper so we can use useLocation inside
+function AppWrapper() {
+  return (
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  );
+}
+
 const App = () => {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const location = useLocation();
 
   // Restore session from localStorage
   useEffect(() => {
@@ -56,14 +73,12 @@ const App = () => {
     setIsLoading(false);
   }, []);
 
-  // Called by <Signup />
   const handleSignup = (createdUser: AppUser) => {
     setUser(createdUser);
     localStorage.setItem("kidneyguard_user", JSON.stringify(createdUser));
     if (createdUser._id) localStorage.setItem("userId", createdUser._id);
   };
 
-  // Called by <Login />
   const handleLogin = (loggedInUser: AppUser) => {
     setUser(loggedInUser);
     localStorage.setItem("kidneyguard_user", JSON.stringify(loggedInUser));
@@ -74,8 +89,7 @@ const App = () => {
     setUser(null);
     localStorage.removeItem("kidneyguard_user");
     localStorage.removeItem("userId");
-    // optional: call backend to clear cookie
-    fetch(`${API}/users/logout`, { method: "POST", credentials: "include" }).catch(() => { });
+    fetch(`${API}/users/logout`, { method: "POST", credentials: "include" }).catch(() => {});
   };
 
   if (isLoading) {
@@ -88,29 +102,50 @@ const App = () => {
     );
   }
 
+  // Hide navbar/footer on certain pages
+  const hideNavbar = location.pathname === "/admin-dashboard";
+  const hideFooter =
+    location.pathname === "/admin-dashboard" || location.pathname === "/games";
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <div className="min-h-screen bg-background">
-            {/* Conditionally render Navbar */}
-            {window.location.pathname !== "/admin-dashboard" && (
-              <Navbar isAuthenticated={!!user} onLogout={handleLogout} />
-            )}
+        <div className="min-h-screen flex flex-col bg-background">
+          {/* Navbar */}
+          {!hideNavbar && (
+            <Navbar isAuthenticated={!!user} onLogout={handleLogout} />
+          )}
+
+          {/* Main content */}
+          <div className="flex-grow">
             <Routes>
               <Route
                 path="/"
-                element={user ? <Dashboard user={user as any} /> : <Navigate to="/login" replace />}
+                element={
+                  user ? (
+                    <Dashboard user={user as any} />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
+                }
               />
               <Route
                 path="/login"
-                element={user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />}
+                element={
+                  user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />
+                }
               />
               <Route
                 path="/signup"
-                element={user ? <Navigate to="/" replace /> : <Signup onSignup={handleSignup} />}
+                element={
+                  user ? (
+                    <Navigate to="/" replace />
+                  ) : (
+                    <Signup onSignup={handleSignup} />
+                  )
+                }
               />
               <Route
                 path="/patients"
@@ -131,22 +166,33 @@ const App = () => {
               <Route
                 path="/profile"
                 element={
-                  user ? <Profile user={user} onUpdateUser={setUser} /> : <Navigate to="/login" replace />
+                  user ? (
+                    <Profile user={user} onUpdateUser={setUser} />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
                 }
               />
-
-              {/* Admin route with role-based protection */}
               <Route
                 path="/admin-dashboard"
-                element={user && user.role === "admin" ? <AdminDashboard /> : <Navigate to="/" replace />}
+                element={
+                  user && user.role === "admin" ? (
+                    <AdminDashboard />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
               />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </div>
-        </BrowserRouter>
+
+          {/* Footer */}
+          {!hideFooter && <Footer />}
+        </div>
       </TooltipProvider>
     </QueryClientProvider>
   );
 };
 
-export default App;
+export default AppWrapper;

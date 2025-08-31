@@ -274,9 +274,9 @@ const PivotTable: React.FC<PivotTableProps> = ({
                 <div className="space-y-2">
                     {rowSummaries.map((summary, idx) => (
                         <p key={idx} className="text-sm">
-                            In the <strong>{displayValue(summary.row)}</strong> group, the highest proportion of patients falls under 
+                            In the <strong>"{displayValue(summary.row)}"</strong> ({fieldLabels[rowField]}) group, the highest proportion of patients falls under 
                             <strong> {summary.highestTarget.replace(/_/g, ' ')} </strong> for 
-                            <strong> {displayValue(summary.highestCol)} </strong> category (~{summary.highestPercentage.toFixed(2)}% of total patients).
+                            <strong> "{displayValue(summary.highestCol)}"" </strong> {fieldLabels[colField]} category (~{summary.highestPercentage.toFixed(2)}% of total patients).
                         </p>
                     ))}
                 </div>
@@ -286,7 +286,7 @@ const PivotTable: React.FC<PivotTableProps> = ({
                     <ul className="list-disc list-inside text-sm space-y-1">
                         {columns.map(col => (
                             <li key={col}>
-                                <strong>{displayValue(col)}</strong> category represents ~{colPercentages[col].toFixed(2)}% of all patients.
+                                <strong>"{displayValue(col)}"</strong> {fieldLabels[colField]} category represents ~{colPercentages[col].toFixed(2)}% of all patients.
                             </li>
                         ))}
                     </ul>

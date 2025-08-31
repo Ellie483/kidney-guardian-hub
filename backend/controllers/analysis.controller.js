@@ -95,9 +95,6 @@ const getAgeGroupDistribution = async (req, res) => {
   }
 };
 
-
-
-
 // 2. CKD + Diabetes grouped by age group
 const getDiabetesRelatedCKD = async (req, res) => {
   try {
@@ -476,10 +473,11 @@ const getAppetiteAgeTarget = async (req, res) => {
           target: "$target",
         },
       },
-      // Filter out unknown age group
+      // exclude "no_disease"
       {
         $match: {
           age_group: { $ne: "Unknown" },
+          target: { $ne: "no_disease" },
         },
       },
       {
@@ -496,7 +494,9 @@ const getAppetiteAgeTarget = async (req, res) => {
         $group: {
           _id: { age_group: "$_id.age_group", appetite: "$_id.appetite" },
           total: { $sum: "$count" },
-          targets: { $push: { target: "$_id.target", count: "$count" } },
+          targets: {
+            $push: { k: "$_id.target", v: "$count" }, // key-value pairs
+          },
         },
       },
       {
@@ -504,20 +504,37 @@ const getAppetiteAgeTarget = async (req, res) => {
           _id: 0,
           age_group: "$_id.age_group",
           appetite: "$_id.appetite",
-          targets: {
-            $map: {
-              input: "$targets",
-              as: "t",
-              in: {
-                target: "$$t.target",
-                percentage: {
-                  $round: [
-                    { $multiply: [{ $divide: ["$$t.count", "$total"] }, 100] },
-                    2,
-                  ],
-                },
-              },
-            },
+          counts: { $arrayToObject: "$targets" }, // convert array to object
+          total: 1,
+        },
+      },
+      {
+        $project: {
+          age_group: 1,
+          appetite: 1,
+          low_risk: {
+            $round: [
+              { $multiply: [{ $divide: [{ $ifNull: ["$counts.low_risk", 0] }, "$total"] }, 100] },
+              2,
+            ],
+          },
+          moderate_risk: {
+            $round: [
+              { $multiply: [{ $divide: [{ $ifNull: ["$counts.moderate_risk", 0] }, "$total"] }, 100] },
+              2,
+            ],
+          },
+          high_risk: {
+            $round: [
+              { $multiply: [{ $divide: [{ $ifNull: ["$counts.high_risk", 0] }, "$total"] }, 100] },
+              2,
+            ],
+          },
+          severe_disease: {
+            $round: [
+              { $multiply: [{ $divide: [{ $ifNull: ["$counts.severe_disease", 0] }, "$total"] }, 100] },
+              2,
+            ],
           },
         },
       },
@@ -531,6 +548,9 @@ const getAppetiteAgeTarget = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+
+
 
 module.exports = {
   getAgeGroupDistribution,

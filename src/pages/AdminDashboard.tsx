@@ -11,6 +11,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Users, Trash2, Database, BookOpen, Shield, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash, ChevronLeft, ChevronRight } from "lucide-react";
+import { LogOut } from "lucide-react";
+
 
 // at top of the file
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
@@ -280,6 +282,7 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit, total]);
 
+const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   const [type, setType] = useState("myth");
   const [title, setTitle] = useState("");
@@ -341,6 +344,15 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     }
   };
 
+   const handleLogout = () => {
+    // setUser(null);
+    localStorage.removeItem("kidneyguard_user");
+    localStorage.removeItem("userId");
+    fetch(`${API}/users/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+    window.location.href = "/login";
+  };
+
+
 
 
   const indexOfLast = currentPage * itemsPerPage;
@@ -356,7 +368,14 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
             <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
             <p className="text-muted-foreground">Manage users, content, and system data</p>
           </div>
-          <Shield className="h-8 w-8 text-primary" />
+          {/* <Shield className="h-8 w-8 text-primary" /> */}
+          <button
+  onClick={handleLogout}
+  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-md shadow-md transition-colors duration-200"
+>
+  <LogOut className="w-5 h-5" />
+  Logout
+</button>
         </div>
 
         {/* Stats Cards */}

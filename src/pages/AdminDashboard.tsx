@@ -72,6 +72,61 @@ const AdminDashboard: React.FC = () => {
   });
 
   // ===== UI =====
+  // within your AdminDashboard component, add state + handlers near others
+// state
+const [importing, setImporting] = useState(false);
+const [dryRun, setDryRun] = useState(true);
+
+// merge strategy
+type MergeMode = "insert" | "upsert";
+const [mergeMode, setMergeMode] = useState<MergeMode>("insert");
+const [upsertBy, setUpsertBy] = useState(""); // empty unless upsert chosen
+const [importSummary, setImportSummary] = useState<any | null>(null);
+const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+//==================Import Dataset Function============================
+// state (add)
+const jsonInputRef = React.useRef<HTMLInputElement>(null);
+
+
+const pickJson = () => jsonInputRef.current?.click();
+
+const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    setImporting(true);
+    const text = await file.text();
+    let payload;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      throw new Error("Selected file is not valid JSON.");
+    }
+    const res = await fetch(`${API_BASE}/admin/data/patients/import-json`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload) // must be an array
+    });
+    const data = await readJson(res);
+    setImportSummary(data);
+
+    // refresh stats
+    try {
+      const s = await fetchUserStats();
+      setStats({ totalUsers: s.totalUsers ?? 0, totalPatients: s.totalPatients ?? 0 });
+    } catch {}
+    toast({ title: "Import complete", description: `Inserted ${data.insertedCount || 0} records` });
+  } catch (err: any) {
+    toast({ title: "Import failed", description: err?.message || "Upload error", variant: "destructive" });
+  } finally {
+    setImporting(false);
+    if (jsonInputRef.current) jsonInputRef.current.value = "";
+  }
+};
+
+//=============================================
   const [loading, setLoading] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
   const { toast } = useToast();
@@ -616,35 +671,68 @@ const AdminDashboard: React.FC = () => {
             </div>
           </TabsContent>
 
-          {/* Data Tab (unchanged skeleton) */}
+          {/* Data Tab */}
           <TabsContent value="data">
-            <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
-              <CardHeader>
-                <CardTitle>Data Management</CardTitle>
-                <CardDescription>Manage datasets and system data</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Alert className="mb-6">
-                  <Database className="h-4 w-4" />
-                  <AlertDescription>
-                    Dataset management features will be implemented based on your specific data requirements.
-                    This could include patient data imports, lab result templates, and reference ranges.
-                  </AlertDescription>
-                </Alert>
+  <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
+    <CardHeader>
+      <CardTitle>Data Management</CardTitle>
+      <CardDescription>Import patient records into <code>Kidney.Patients</code></CardDescription>
+    </CardHeader>
+    <CardContent className="space-y-6">
+    <Button variant="outline" onClick={pickJson} disabled={importing}>
+  {importing ? "Uploading…" : "Import JSON"}
+</Button>
+<input
+  ref={jsonInputRef}
+  type="file"
+  accept="application/json,.json"
+  className="hidden"
+  onChange={handleJsonChange}
+/>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button variant="outline" className="h-20 flex flex-col">
-                    <Database className="h-6 w-6 mb-2" />
-                    Import Dataset
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col">
-                    <BookOpen className="h-6 w-6 mb-2" />
-                    Manage Templates
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+<Alert>
+  <AlertDescription className="space-y-2 text-sm">
+    <div><strong>Tip:</strong> MongoDB will auto-create a unique <code>_id</code> for every new patient.</div>
+    <div><strong>JSON must be an array of patient objects.</strong></div>
+    <div><strong>Required keys (20):</strong></div>
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-xs font-mono">
+      <div>age_of_the_patient</div>
+      <div>smoking_status</div>
+      <div>diabetes_mellitus_yesno</div>
+      <div>hypertension_yesno</div>
+      <div>physical_activity_level</div>
+      <div>family_history_of_chronic_kidney_disease</div>
+      <div>body_mass_index_bmi</div>
+      <div>duration_of_diabetes_mellitus_years</div>
+      <div>duration_of_hypertension_years</div>
+      <div>coronary_artery_disease_yesno</div>
+      <div>serum_creatinine_mgdl</div>
+      <div>estimated_glomerular_filtration_rate_egfr</div>
+      <div>blood_urea_mgdl</div>
+      <div>sodium_level_meql</div>
+      <div>potassium_level_meql</div>
+      <div>random_blood_glucose_level_mgdl</div>
+      <div>albumin_in_urine</div>
+      <div>appetite_goodpoor</div>
+      <div>anemia_yesno</div>
+      <div>target</div>
+    </div>
+  </AlertDescription>
+</Alert>
+
+
+{importSummary && (
+  <div className="rounded-md border p-3 text-sm mt-3">
+    <div>Mode: {importSummary.mode}</div>
+    <div>Received: {importSummary.received}</div>
+    <div>Inserted: {importSummary.insertedCount}</div>
+  </div>
+)}
+
+    </CardContent>
+  </Card>
+</TabsContent>
+
         </Tabs>
       </div>
     </div>

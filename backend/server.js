@@ -12,6 +12,7 @@ const searchRoutes  = require("./routes/search.routes");
 const userRoutes    = require("./routes/users.routes");
 const adminRoutes  = require("./routes/admin.routes"); 
 const adminDataRoutes = require("./routes/admin.data.routes");
+
 const app = express();
 
 /* ---------- middleware ---------- */

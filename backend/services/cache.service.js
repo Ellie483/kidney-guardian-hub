@@ -1,7 +1,7 @@
 const redis = require('../config/redis');
 
 const CACHE_KEY = 'decision_tree_model';
-const CACHE_TTL = 60 * 60 * 3; // 3 hours in seconds
+const CACHE_TTL = 60 * 60 * 24; // 24 hours in seconds
 
 class CacheService {
   // Store decision tree in Redis

@@ -9,28 +9,12 @@ import { FlaskConical, TrendingUp, AlertTriangle, CheckCircle, Info, Heart, Stet
 import { toast } from "sonner";
 
 interface LabResult {
-  age_of_the_patient: number;
-  body_mass_index_bmi: number;
-  blood_pressure_mmhg: number;
-  smoking_status: string;
-  physical_activity_level: string;
-  family_history_of_chronic_kidney_disease: string;
-
-  duration_of_diabetes_mellitus_years: string;
-  duration_of_hypertension_years: string;
-  coronary_artery_disease_yesno: string;
-  appetite_goodpoor: string;
-
   serum_creatinine_mgdl: number;
   estimated_glomerular_filtration_rate_egfr: number;
   blood_urea_mgdl: number;
+  albumin_in_urine: string;
   sodium_level_meql: number;
   potassium_level_meql: number;
-  random_blood_glucose_level_mgdl: number;
-  specific_gravity_of_urine: number;
-  red_blood_cells_in_urine: string;
-  pus_cells_in_urine: string;
-  bacteria_in_urine: string;
 }
 
 interface Analysis {
@@ -46,17 +30,14 @@ export default function LabAnalysis() {
   const [labResults, setLabResults] = useState<Partial<LabResult>>({});
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [activeTab, setActiveTab] = useState('lifestyle');
+  const [activeTab, setActiveTab] = useState('lab');
   const [isSticky, setIsSticky] = useState(false);
   const tabsRef = useRef<HTMLDivElement>(null);
 
   const handleInputChange = (field: keyof LabResult, value: string) => {
     setLabResults(prev => ({
       ...prev,
-      [field]: field ==='smoking_status' || field === 'duration_of_diabetes_mellitus_years' || field === 'duration_of_hypertension_years' ||
-      field ==='physical_activity_level' || field === 'family_history_of_chronic_kidney_disease' || field === 'coronary_artery_disease_yesno' || 
-      field ==='appetite_goodpoor' || field ==='red_blood_cells_in_urine' ||
-      field ==='pus_cells_in_urine' || field ==='bacteria_in_urine'
+      [field]: field === 'albumin_in_urine'
        ? value : parseFloat(value) || 0
     }));
   };
@@ -145,27 +126,43 @@ export default function LabAnalysis() {
   };
 
   const generateRecommendations = (stageNumber: number, riskLevel: string): string[] => {
-    const recommendations = [];
-    
-    if (stageNumber >= 3) {
-      recommendations.push("Consult a nephrologist (kidney specialist) regularly");
-      recommendations.push("Monitor blood pressure closely - target <130/80");
-      recommendations.push("Follow a kidney-friendly diet (low sodium)");
-    }
-    
-    if (stageNumber >= 2) {
-      recommendations.push("Control diabetes if present - target HbA1c <7%");
-      recommendations.push("Stay hydrated but don't overhydrate");
-      recommendations.push("Avoid NSAIDs (ibuprofen, naproxen) when possible");
+    const recommendations: string[] = [];
+
+    if (stageNumber === 0) {
+      recommendations.push("Maintain a healthy lifestyle with regular exercise");
+      recommendations.push("Eat a balanced diet with low salt and processed foods");
     }
 
-    // Always include general recommendations
-    recommendations.push("Maintain regular exercise as tolerated");
-    recommendations.push("Get annual kidney function tests");
-    
-    if (riskLevel === "High Risk") {
-      recommendations.push("Consider dialysis preparation if eGFR <20");
-      recommendations.push("Discuss kidney transplant options");
+    if (stageNumber === 1) {
+      recommendations.push("Control blood pressure - target <130/80");
+      recommendations.push("Stay hydrated but avoid excessive fluid intake");
+      recommendations.push("Avoid unnecessary medications that strain kidneys (like NSAIDs)");
+    }
+
+    if (stageNumber === 2) {
+      recommendations.push("Control diabetes if present (HbA1c <7%)");
+      recommendations.push("Reduce protein intake if advised by a doctor");
+      recommendations.push("Avoid smoking and limit alcohol");
+      recommendations.push("Maintain a healthy weight (BMI <25)");
+    }
+
+    if (stageNumber === 3) {
+      recommendations.push("Monitor blood pressure daily and keep logs");
+      recommendations.push("Limit potassium-rich foods if levels are high");
+      recommendations.push("Follow a kidney-friendly diet (low sodium, moderate protein)");
+      recommendations.push("Check vitamin D and calcium levels regularly");
+      recommendations.push("Manage anemia if present (monitor hemoglobin)");
+      recommendations.push("Avoid contrast dyes in medical imaging unless necessary");
+    }
+
+    if (stageNumber === 4) {
+      recommendations.push("Discuss dialysis options and prepare access if needed");
+      recommendations.push("Evaluate for kidney transplant eligibility");
+      recommendations.push("Limit phosphorus in diet (dairy, nuts, beans, cola)");
+      recommendations.push("Take phosphate binders if prescribed");
+      recommendations.push("Follow strict fluid restriction if swelling occurs");
+      recommendations.push("Monitor for heart disease risk (EKG, cholesterol checks)");
+      recommendations.push("Seek counseling and family support for lifestyle changes");
     }
 
     return recommendations;
@@ -188,14 +185,45 @@ export default function LabAnalysis() {
   };
 
   const analyzeResults = async () => {
-    // if(!labResults.serum_creatinine_mgdl) {
-    if ( !labResults.age_of_the_patient || !labResults.body_mass_index_bmi || !labResults.blood_pressure_mmhg
-      || !labResults.smoking_status || !labResults.physical_activity_level || !labResults.family_history_of_chronic_kidney_disease
-      || !labResults.duration_of_diabetes_mellitus_years || !labResults.duration_of_hypertension_years || !labResults.coronary_artery_disease_yesno 
-      || !labResults.appetite_goodpoor || !labResults.serum_creatinine_mgdl || !labResults.estimated_glomerular_filtration_rate_egfr
-      || !labResults.blood_urea_mgdl || !labResults.sodium_level_meql || !labResults.potassium_level_meql
+    
+    if (
+       !labResults.serum_creatinine_mgdl || !labResults.estimated_glomerular_filtration_rate_egfr ||
+       !labResults.blood_urea_mgdl || !labResults.albumin_in_urine || 
+       !labResults.sodium_level_meql || !labResults.potassium_level_meql 
      ) {
       toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (labResults.serum_creatinine_mgdl < 0.3 || labResults.serum_creatinine_mgdl > 15) {
+      toast.error("Serum creatinine value is outside valid human range");
+      return;
+    }
+    if (labResults.estimated_glomerular_filtration_rate_egfr < 0 || labResults.estimated_glomerular_filtration_rate_egfr > 200) {
+      toast.error("eGFR value is outside valid human range");
+      return;
+    }
+    // Check if creatinine/eGFR pair is impossible
+    if (
+      labResults.serum_creatinine_mgdl < 2 && labResults.estimated_glomerular_filtration_rate_egfr < 30
+    ) {
+      toast.error("Creatinine and eGFR values do not match (too low eGFR for low creatinine)");
+      return;
+    }
+    if (
+      labResults.serum_creatinine_mgdl > 5 && labResults.estimated_glomerular_filtration_rate_egfr > 80
+    ) {
+      toast.error("Creatinine and eGFR values do not match (too high eGFR for high creatinine)");
+      return;
+    }
+
+    // Sodium & Potassium (electrolyte sanity check)
+    if (labResults.sodium_level_meql < 120 || labResults.sodium_level_meql > 160) {
+      toast.error("Sodium value is not physiologically valid");
+      return;
+    }
+    if (labResults.potassium_level_meql < 2.5 || labResults.potassium_level_meql > 7) {
+      toast.error("Potassium value is not physiologically valid");
       return;
     }
 
@@ -255,7 +283,7 @@ export default function LabAnalysis() {
   const resetAnalysis = () => {
     setLabResults({});
     setAnalysis(null);
-    setActiveTab('lifestyle');
+    setActiveTab('lab');
   };
 
   const getRiskColor = (riskLevel: string) => {
@@ -291,14 +319,14 @@ export default function LabAnalysis() {
           </div>
           <h1 className="text-4xl font-bold mb-4">Lab Result Analysis</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Upload your lab results and lifestyle habits for AI-powered analysis and personalized explanations of your kidney health.
+            Upload your lab results for AI-powered analysis and personalized explanations of your kidney health.
           </p>
         </div>
 
         {!analysis ? (
           <div>
             {/* Sticky Tabs */}
-            <div className="relative">
+            {/* <div className="relative">
               <div
                 ref={tabsRef}
                 className={`flex bg-white rounded-lg shadow-md mb-6 ${isSticky ? 'fixed z-50 shadow-lg' : ''}`}
@@ -323,10 +351,10 @@ export default function LabAnalysis() {
                   Lab Results
                 </button>
               </div>
-            </div>
+            </div> */}
 
             {/* Lifestyle Tab */}
-            {activeTab === 'lifestyle' && (
+            {/* {activeTab === 'lifestyle' && (
               <Card className="shadow-card border-0">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
@@ -431,10 +459,10 @@ export default function LabAnalysis() {
                   </Button>
                 </CardContent>
               </Card>
-            )}
+            )} */}
 
             {/* Background Disease Tab */}
-            {activeTab === 'background' && (
+            {/* {activeTab === 'background' && (
               <Card className="shadow-card border-0">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
@@ -511,7 +539,7 @@ export default function LabAnalysis() {
                   </Button>
                 </CardContent>
               </Card>
-            )}
+            )} */}
 
             {/* Lab Results Tab */}
             {activeTab === 'lab' && (
@@ -541,7 +569,7 @@ export default function LabAnalysis() {
                         value={labResults.serum_creatinine_mgdl || ''}
                         onChange={(e) => handleInputChange('serum_creatinine_mgdl', e.target.value)}
                       />
-                      <p className="text-xs text-muted-foreground text-[14px]">Normal: 0.6-1.2 mg/dL</p>
+                      {/* <p className="text-xs text-muted-foreground text-[14px]">Normal: 0.6-1.2 mg/dL</p> */}
                     </div>
 
                     <div className="space-y-2">
@@ -554,7 +582,7 @@ export default function LabAnalysis() {
                         value={labResults.estimated_glomerular_filtration_rate_egfr || ''}
                         onChange={(e) => handleInputChange('estimated_glomerular_filtration_rate_egfr', e.target.value)}
                       />
-                      <p className="text-xs text-muted-foreground text-[14px]">Normal: &gt;90 mL/min/1.73m²</p>
+                      {/* <p className="text-xs text-muted-foreground text-[14px]">Normal: &gt;90 mL/min/1.73m²</p> */}
                     </div>
 
                     <div className="space-y-2">
@@ -567,7 +595,18 @@ export default function LabAnalysis() {
                         value={labResults.blood_urea_mgdl || ''}
                         onChange={(e) => handleInputChange('blood_urea_mgdl', e.target.value)}
                       />
-                      <p className="text-xs text-muted-foreground text-[14px]">Normal: 7-20 mg/dL</p>
+                      {/* <p className="text-xs text-muted-foreground text-[14px]">Normal: 7-20 mg/dL</p> */}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="albumin_in_urine" className="text-[16px]">Albumin in urine <span className="text-red-500 text-xl">*</span></Label>
+                      <Input
+                        id="albumin_in_urine"
+                        placeholder="e.g., 1"
+                        value={labResults.albumin_in_urine || ''}
+                        onChange={(e) => handleInputChange('albumin_in_urine', e.target.value)}
+                      />
+                      {/* <p className="text-xs text-muted-foreground text-[14px]">Normal: 0 to 1.5</p> */}
                     </div>
 
                     <div className="space-y-2">
@@ -580,7 +619,7 @@ export default function LabAnalysis() {
                         value={labResults.sodium_level_meql || ''}
                         onChange={(e) => handleInputChange('sodium_level_meql', e.target.value)}
                       />
-                      <p className="text-xs text-muted-foreground text-[14px]">Normal: 135-145 mEq/L</p>
+                      {/* <p className="text-xs text-muted-foreground text-[14px]">Normal: 135-145 mEq/L</p> */}
                     </div>
 
                     <div className="space-y-2">
@@ -593,74 +632,7 @@ export default function LabAnalysis() {
                         value={labResults.potassium_level_meql || ''}
                         onChange={(e) => handleInputChange('potassium_level_meql', e.target.value)}
                       />
-                      <p className="text-xs text-muted-foreground text-[14px]">Normal: 3.5-5.0 mEq/L</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="random_blood_glucose_level_mgdl" className="text-[16px]">Random Blood Glucose (mg/dL)</Label>
-                      <Input
-                        id="random_blood_glucose_level_mgdl"
-                        type="number"
-                        placeholder="e.g., 100"
-                        value={labResults.random_blood_glucose_level_mgdl || ''}
-                        onChange={(e) => handleInputChange('random_blood_glucose_level_mgdl', e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground text-[14px]">Normal: &lt;140 mg/dL (non-fasting)</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="specific_gravity_of_urine" className="text-[16px]">Urine Specific Gravity</Label>
-                      <Input
-                        id="specific_gravity_of_urine"
-                        type="number"
-                        step="0.001"
-                        placeholder="e.g., 1.010"
-                        value={labResults.specific_gravity_of_urine || ''}
-                        onChange={(e) => handleInputChange('specific_gravity_of_urine', e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground text-[14px]">Normal: 1.005-1.030</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="red_blood_cells_in_urine" className="text-[16px]">Red Blood Cells in Urine</Label>
-                      <select
-                        id="red_blood_cells_in_urine"
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                        value={labResults.red_blood_cells_in_urine || ''}
-                        onChange={(e) => handleInputChange('red_blood_cells_in_urine', e.target.value)}
-                      >
-                        <option value="">Select One</option>
-                        <option value="normal">Normal</option>
-                        <option value="abnormal">Abnormal</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="pus_cells_in_urine" className="text-[16px]">White Blood Cells in Urine</Label>
-                      <select
-                        id="pus_cells_in_urine"
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                        value={labResults.pus_cells_in_urine || ''}
-                        onChange={(e) => handleInputChange('pus_cells_in_urine', e.target.value)}
-                      >
-                        <option value="">Select One</option>
-                        <option value="normal">Normal</option>
-                        <option value="abnormal">Abnormal</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="bacteria_in_urine" className="text-[16px]">Bacteria in Urine</Label>
-                      <select
-                        id="bacteria_in_urine"
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                        value={labResults.bacteria_in_urine || ''}
-                        onChange={(e) => handleInputChange('bacteria_in_urine', e.target.value)}
-                      >
-                        <option value="">Select One</option>
-                        <option value="not present">Not Present</option>
-                        <option value="present">Present</option>
-                      </select>
+                      {/* <p className="text-xs text-muted-foreground text-[14px]">Normal: 3.5-5.0 mEq/L</p> */}
                     </div>
                   </div>
 

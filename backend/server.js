@@ -11,6 +11,7 @@ const analysisRoutes = require("./routes/analysis.routes");
 const searchRoutes  = require("./routes/search.routes");
 const userRoutes    = require("./routes/users.routes");
 const adminRoutes  = require("./routes/admin.routes"); 
+const mythfactRoutes = require("./routes/mythfact.routes")
 const adminDataRoutes = require("./routes/admin.data.routes");
 const app = express();
 
@@ -45,6 +46,7 @@ app.use("/patients", patientRoutes); // GET /patients, POST /patients/similar
 app.use("/search",  searchRoutes);   // POST /search/cohort
 app.use("/users",   userRoutes);     // POST /users, POST /users/login, GET /users/me, GET /users
 app.use("/admin",   adminRoutes);
+app.use("/mythfact", mythfactRoutes)
 app.use("/admin", adminDataRoutes);
 // health
 app.get("/health", (_req, res) => res.json({ ok: true }));

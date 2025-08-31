@@ -8,8 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Users, Plus, Trash2, Database, BookOpen, Shield, Activity } from 'lucide-react';
+import { Users, Trash2, Database, BookOpen, Shield, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Plus, Trash, ChevronLeft, ChevronRight } from "lucide-react";
+
 // at top of the file
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
@@ -39,15 +41,15 @@ async function readJson(res: Response) {
   const ct = res.headers.get('content-type') || '';
   const text = await res.text(); // always read as text first
   if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText} — ${text.slice(0,200)}`);
+    throw new Error(`${res.status} ${res.statusText} — ${text.slice(0, 200)}`);
   }
   if (!ct.includes('application/json')) {
-    throw new Error(`Expected JSON but got ${ct || 'no content-type'} — ${text.slice(0,200)}`);
+    throw new Error(`Expected JSON but got ${ct || 'no content-type'} — ${text.slice(0, 200)}`);
   }
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`Bad JSON: ${text.slice(0,200)}`);
+    throw new Error(`Bad JSON: ${text.slice(0, 200)}`);
   }
 }
 
@@ -148,24 +150,24 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
   };
 
   const fetchUsers = async (params: {
-    search?: string; role?: 'any'|'admin'|'user'; from?: string; to?: string; page?: number; limit?: number;
+    search?: string; role?: 'any' | 'admin' | 'user'; from?: string; to?: string; page?: number; limit?: number;
   }) => {
     const q = new URLSearchParams();
-    Object.entries(params).forEach(([k,v]) => { if (v !== undefined && v !== '') q.set(k, String(v)); });
+    Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') q.set(k, String(v)); });
     const res = await fetch(`${API_BASE}/admin/users?${q.toString()}`, { credentials: 'include' });
     return await readJson(res);
   };
-  
+
   const fetchUserStats = async () => {
     const res = await fetch(`${API_BASE}/admin/users/stats`, { credentials: 'include' });
     return await readJson(res);
   };
-  
+
   const deleteUser = async (id: string) => {
     const res = await fetch(`${API_BASE}/admin/users/${id}`, { method: 'DELETE', credentials: 'include' });
     return await readJson(res);
   };
-  
+
 
   // ===== Effects =====
   // Users list: refetch when filters/paging change
@@ -241,7 +243,7 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!confirm('Delete this user?')) return;
     try {
       setLoading(true);
-      await deleteUser (userId);
+      await deleteUser(userId);
       // Refresh current page with current filters
       const data = await fetchUsers({ search, from, to, page, limit });
       setUsers(data.results);
@@ -253,7 +255,7 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
           totalUsers: s.totalUsers,
           totalPatients: s.totalPatients ?? 0,
         });
-      } catch {}
+      } catch { }
       toast({ title: 'Deleted', description: 'User deleted successfully' });
     } catch (e: any) {
       toast({ title: 'Error', description: e?.message || 'Failed to delete user', variant: 'destructive' });
@@ -278,6 +280,73 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit, total]);
 
+
+  const [type, setType] = useState("myth");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("general");
+  const [contents, setContents] = useState([]);
+  const [mythloading, setmythLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  const API_URL = "http://localhost:5000/mythfact";
+
+  // Fetch existing content
+  const fetchContents = async () => {
+    try {
+      setmythLoading(true);
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      setContents(data);
+      setmythLoading(false);
+    } catch (err) {
+      console.error(err);
+      setmythLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchContents();
+  }, []);
+
+  // Add new content
+  const handleAdd = async () => {
+    if (!title || !description) return alert("Please fill all fields");
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, title, description, category })
+      });
+      const data = await res.json();
+      setContents([data, ...contents]);
+      setTitle("");
+      setDescription("");
+      setType("myth");
+      setCategory("general");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Delete content
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    try {
+      await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+      setContents(contents.filter(c => c._id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+
+
+  const indexOfLast = currentPage * itemsPerPage;
+  const indexOfFirst = indexOfLast - itemsPerPage;
+  const currentItems = contents.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(contents.length / itemsPerPage);
   return (
     <div className="min-h-screen bg-gradient-subtle p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -445,7 +514,7 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
                             <TableCell>{user.age ?? 'N/A'}</TableCell>
                             <TableCell>{user.gender ?? 'N/A'}</TableCell>
                             <TableCell>{userDate(user)}</TableCell>
-                              {/* <TableCell>
+                            {/* <TableCell>
                                 <Badge variant={user.isAdmin ? 'default' : 'secondary'}>
                                   {user.isAdmin ? 'Admin' : 'User'}
                                 </Badge>
@@ -486,6 +555,8 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
           {/* Content Tab (kept same; demo only) */}
           <TabsContent value="content">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* Add Myth/Fact Form */}
               <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
                 <CardHeader>
                   <CardTitle>Add Myth/Fact</CardTitle>
@@ -496,8 +567,8 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     <Label htmlFor="type">Type</Label>
                     <select
                       className="w-full p-2 border border-border rounded-md bg-background"
-                      onChange={() => {}}
-                      defaultValue="myth"
+                      value={type}
+                      onChange={(e) => setType(e.target.value)}
                     >
                       <option value="myth">Myth</option>
                       <option value="fact">Fact</option>
@@ -506,17 +577,30 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
                   <div className="space-y-2">
                     <Label htmlFor="title">Title</Label>
-                    <Input placeholder="Enter title..." />
+                    <Input
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="Enter title..."
+                    />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="description">Description</Label>
-                    <Textarea placeholder="Enter description..." rows={4} />
+                    <Textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Enter description..."
+                      rows={4}
+                    />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="category">Category</Label>
-                    <select className="w-full p-2 border border-border rounded-md bg-background" defaultValue="general">
+                    <select
+                      className="w-full p-2 border border-border rounded-md bg-background"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                    >
                       <option value="general">General</option>
                       <option value="prevention">Prevention</option>
                       <option value="treatment">Treatment</option>
@@ -524,24 +608,64 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     </select>
                   </div>
 
-                  <Button className="w-full">
+                  <Button className="w-full" onClick={handleAdd}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add
                   </Button>
                 </CardContent>
               </Card>
 
+              {/* Existing Content with Pagination */}
               <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
                 <CardHeader>
                   <CardTitle>Existing Content</CardTitle>
                   <CardDescription>Manage myths and facts</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Alert className="mb-0">
-                    <AlertDescription>
-                      Content management wiring can be added later (demo list omitted here to keep focus on user admin).
-                    </AlertDescription>
-                  </Alert>
+                  {mythloading && <p>Loading...</p>}
+                  {!mythloading && contents.length === 0 && (
+                    <Alert className="mb-0">
+                      <AlertDescription>No content found.</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {!loading && currentItems.map((item) => (
+                    <div key={item._id} className="border p-3 mb-2 rounded-md flex justify-between items-start">
+                      <div>
+                        <p className="font-bold">{item.title} ({item.type})</p>
+                        <p className="text-sm">{item.description}</p>
+                        <p className="text-xs text-muted-foreground">{item.category}</p>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDelete(item._id)}
+                      >
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  {/* Pagination Controls */}
+                  {contents.length > itemsPerPage && (
+                    <div className="flex justify-center items-center space-x-2 mt-4">
+                      <Button
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span>Page {currentPage} of {totalPages}</span>
+                      <Button
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

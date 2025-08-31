@@ -3,7 +3,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { Navbar } from "@/components/ui/navbar";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
@@ -15,7 +21,8 @@ import LabAnalysis from "./pages/LabAnalysis";
 import Profile from "./pages/Profile";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
-import Footer from "./pages/Footer"; // updated import path
+import Footer from "./pages/Footer";
+
 const queryClient = new QueryClient();
 
 // Match your backend schema
@@ -32,16 +39,26 @@ export interface AppUser {
   medicalConditions?: string[];
   bloodType?: string;
   familyHistory?: "Yes" | "No";
-  physicalActivity?: "Low" | "Moderate" | "High";  // strict type
+  physicalActivity?: "Low" | "Moderate" | "High";
   smoke?: "Yes" | "No";
   registeredAt?: string;
 }
 
 const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
+// A wrapper so we can use useLocation inside
+function AppWrapper() {
+  return (
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  );
+}
+
 const App = () => {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const location = useLocation();
 
   // Restore session from localStorage
   useEffect(() => {
@@ -85,68 +102,97 @@ const App = () => {
     );
   }
 
+  // Hide navbar/footer on certain pages
+  const hideNavbar = location.pathname === "/admin-dashboard";
+  const hideFooter =
+    location.pathname === "/admin-dashboard" || location.pathname === "/games";
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <div className="min-h-screen flex flex-col bg-background">
-            {/* Navbar */}
-            {window.location.pathname !== "/admin-dashboard" && (
-              <Navbar isAuthenticated={!!user} onLogout={handleLogout} />
-            )}
+        <div className="min-h-screen flex flex-col bg-background">
+          {/* Navbar */}
+          {!hideNavbar && (
+            <Navbar isAuthenticated={!!user} onLogout={handleLogout} />
+          )}
 
-            {/* Main content */}
-            <div className="flex-grow">
-              <Routes>
-                <Route
-                  path="/"
-                  element={user ? <Dashboard user={user as any} /> : <Navigate to="/login" replace />}
-                />
-                <Route
-                  path="/login"
-                  element={user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />}
-                />
-                <Route
-                  path="/signup"
-                  element={user ? <Navigate to="/" replace /> : <Signup onSignup={handleSignup} />}
-                />
-                <Route
-                  path="/patients"
-                  element={user ? <Patients /> : <Navigate to="/login" replace />}
-                />
-                <Route
-                  path="/awareness"
-                  element={user ? <Awareness /> : <Navigate to="/login" replace />}
-                />
-                <Route
-                  path="/games"
-                  element={user ? <Games /> : <Navigate to="/login" replace />}
-                />
-                <Route
-                  path="/analysis"
-                  element={user ? <LabAnalysis /> : <Navigate to="/login" replace />}
-                />
-                <Route
-                  path="/profile"
-                  element={user ? <Profile user={user} onUpdateUser={setUser} /> : <Navigate to="/login" replace />}
-                />
-                <Route
-                  path="/admin-dashboard"
-                  element={user && user.role === "admin" ? <AdminDashboard /> : <Navigate to="/" replace />}
-                />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </div>
-
-            {/* Footer */}
-            {window.location.pathname !== "/admin-dashboard" && <Footer />}
+          {/* Main content */}
+          <div className="flex-grow">
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  user ? (
+                    <Dashboard user={user as any} />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
+                }
+              />
+              <Route
+                path="/login"
+                element={
+                  user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />
+                }
+              />
+              <Route
+                path="/signup"
+                element={
+                  user ? (
+                    <Navigate to="/" replace />
+                  ) : (
+                    <Signup onSignup={handleSignup} />
+                  )
+                }
+              />
+              <Route
+                path="/patients"
+                element={user ? <Patients /> : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="/awareness"
+                element={user ? <Awareness /> : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="/games"
+                element={user ? <Games /> : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="/analysis"
+                element={user ? <LabAnalysis /> : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="/profile"
+                element={
+                  user ? (
+                    <Profile user={user} onUpdateUser={setUser} />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
+                }
+              />
+              <Route
+                path="/admin-dashboard"
+                element={
+                  user && user.role === "admin" ? (
+                    <AdminDashboard />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
           </div>
-        </BrowserRouter>
+
+          {/* Footer */}
+          {!hideFooter && <Footer />}
+        </div>
       </TooltipProvider>
     </QueryClientProvider>
   );
 };
 
-export default App;
+export default AppWrapper;

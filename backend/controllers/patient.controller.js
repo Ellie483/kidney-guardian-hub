@@ -4,6 +4,7 @@ const Patient = require("../models/patient.model");
 const User = require("../models/users.model");
 const SimilarCache = require("../models/similarCache.model");
 const { gowerSim, val } = require("../utils/gower");
+const { rankTopSimilar, printRankTable, printBreakdownRow } = require("../utils/gower");
 
 // ----------------------- feature config -----------------------
 const FEATURE_VERSION = "gower.v1";
@@ -64,6 +65,23 @@ function stageFromEgfr(egfr) {
   if (egfr >= 45) return "Stage 3a";
   if (egfr >= 30) return "Stage 3b";
   return "Stage 4/5";
+}
+function toNormFromPatientDoc(p) {
+  return {
+    _id: p._id,
+    age: toNum(p.age) ?? toNum(p.age_of_the_patient) ?? null,
+    gender: (p.gender || p.sex || "").toLowerCase() || null,
+    lifestyle: {
+      diabetic: !!(p.diabetes_mellitus_yesno ?? (p.lifestyle?.diabetic)),
+      highBP:   !!(p.hypertension_yesno ?? (p.lifestyle?.highBP)),
+      smokes:   !!(p.smoking_status ?? (p.lifestyle?.smokes)),
+      activity: normActivity(p.physical_activity_level ?? p.lifestyle?.activity ?? null),
+    },
+    vitals: {
+      egfr: toNum(p.vitals?.egfr) ?? toNum(p.estimated_glomerular_filtration_rate_egfr) ?? null,
+      bmi:  toNum(p.vitals?.bmi)  ?? toNum(p.body_mass_index_bmi) ?? null,
+    },
+  };
 }
 
 function getActivity(doc) {
@@ -227,6 +245,8 @@ exports.listPatients = async (req, res) => {
 };
 
 // ---------------- getSimilarPatients (with cache INSIDE function) -----------
+
+
 exports.getSimilarPatients = async (req, res) => {
   try {
     const { userId, profile, limit = 12 } = req.body || {};
@@ -245,28 +265,29 @@ exports.getSimilarPatients = async (req, res) => {
 
     // 2) normalize user
     const normUser = {
-  age: toNum(user.age) ?? null,
-  gender: (user.gender || "").toLowerCase() || null,
-  lifestyle: {
-    diabetic: (user.medicalConditions || []).includes("Diabetes"),
-    highBP:   (user.medicalConditions || []).includes("Hypertension"),
-    smokes:   String(user.smoke ?? user.smokeAlcohol ?? "").trim().toLowerCase() === "yes",
-    familyHistoryCKD: String(user.familyHistory ?? "").trim().toLowerCase() === "yes",
-    activity: normActivity(
-      (user?.lifestyle?.activity ||
-       user?.activityLevel ||
-       user?.physical_activity_level ||
-       user?.physicalActivity ||  // your signup field
-       null)
-    )
-  },
-  vitals: {
-    egfr: toNum(user?.vitals?.egfr) ?? null,
-    bmi:  toNum(user?.vitals?.bmi)  ?? (Number.isFinite(derivedBmi) ? Number(derivedBmi.toFixed(1)) : null),
-  },
-  medicalConditions: user.medicalConditions || [],
-  smoke: user.smoke,
-};
+      age: toNum(user.age) ?? null,
+      gender: (user.gender || "").toLowerCase() || null,
+      lifestyle: {
+        diabetic: (user.medicalConditions || []).includes("Diabetes"),
+        highBP:   (user.medicalConditions || []).includes("Hypertension"),
+        smokes:   String(user.smoke ?? user.smokeAlcohol ?? "").trim().toLowerCase() === "yes",
+        familyHistoryCKD: String(user.familyHistory ?? "").trim().toLowerCase() === "yes",
+        activity: normActivity(
+          (user?.lifestyle?.activity ||
+           user?.activityLevel ||
+           user?.physical_activity_level ||
+           user?.physicalActivity ||  // your signup field
+           null)
+        )
+      },
+      vitals: {
+        egfr: toNum(user?.vitals?.egfr) ?? null,
+        bmi:  toNum(user?.vitals?.bmi)  ?? (Number.isFinite(derivedBmi) ? Number(derivedBmi.toFixed(1)) : null),
+      },
+      medicalConditions: user.medicalConditions || [],
+      smoke: user.smoke,
+    };
+
     // 3) preSignature for cache (ONLY user + limit + feature version)
     const preSigPayload = { FEATURE_VERSION, limit: Number(limit) || 12, user: normUser };
     const preSignature = makeSignature(preSigPayload);
@@ -288,61 +309,75 @@ exports.getSimilarPatients = async (req, res) => {
     if (!candidates.length) candidates = await Patient.find().lean();
     if (!candidates.length) return res.json({ results: [], signature: preSignature });
 
-    // 5.1) STRICT filter for smoking & family history when specified
-    const wantSmokes = normUser?.lifestyle?.smokes;
-    const wantFHx    = normUser?.lifestyle?.familyHistoryCKD;
-    const asBool = (v) => {
-      if (v === true || v === false) return v;
-      if (v == null) return null;
-      if (typeof v === "number") return v !== 0;
-      const s = String(v).trim().toLowerCase();
-      if (["1","true","t","yes","y"].includes(s)) return true;
-      if (["0","false","f","no","n"].includes(s)) return false;
-      return null;
-    };
-    candidates = candidates.filter(p => {
-      if (typeof wantSmokes === "boolean") {
-        const ps = asBool(p.smoking_status);
-        if (ps == null || ps !== wantSmokes) return false;
-      }
-      if (typeof wantFHx === "boolean") {
-        const pfh = asBool(p.family_history_of_chronic_kidney_disease);
-        if (pfh == null || pfh !== wantFHx) return false;
-      }
-      return true;
-    });
+    // ---------------- STRICT FILTERS (before scoring) ----------------
+const wantSmokes = normUser?.lifestyle?.smokes;
+const wantFHx    = normUser?.lifestyle?.familyHistoryCKD;
+const wantDiab   = normUser?.lifestyle?.diabetic;
+const wantHighBP = normUser?.lifestyle?.highBP;
 
-    // ---- STRICT filter for activity (exact) and BMI band (±3) if user provided ----
-const wantAct = normUser?.lifestyle?.activity;   // "low" | "moderate" | "high" | null
-const wantBMI = toNum(normUser?.vitals?.bmi);
+const wantAct = normUser?.lifestyle?.activity;      // "low" | "moderate" | "high" | null
+const wantBMI = toNum(normUser?.vitals?.bmi);       // number | NaN
+const wantAge = toNum(normUser?.age);               // number | NaN
 
+const AGE_BAND = 8;     // years
+const BMI_BAND = 3;     // ± kg/m² band
 
-candidates = candidates.filter(p => {
-  // activity: accept if user didn’t specify OR patient matches (case-insensitively)
+// normalize booleans coming from various stored forms
+const asBool = (v) => {
+  if (v === true || v === false) return v;
+  if (v == null) return null;
+  if (typeof v === "number") return v !== 0;
+  const s = String(v).trim().toLowerCase();
+  if (["1","true","t","yes","y"].includes(s)) return true;
+  if (["0","false","f","no","n"].includes(s)) return false;
+  return null;
+};
+
+candidates = candidates.filter((p) => {
+  // ---- strict binary matches when user specified them ----
+  if (typeof wantDiab === "boolean") {
+    const pd = asBool(p.diabetes_mellitus_yesno ?? p.lifestyle?.diabetic);
+    if (pd == null || pd !== wantDiab) return false;
+  }
+  if (typeof wantHighBP === "boolean") {
+    const ph = asBool(p.hypertension_yesno ?? p.lifestyle?.highBP);
+    if (ph == null || ph !== wantHighBP) return false;
+  }
+  if (typeof wantSmokes === "boolean") {
+    const ps = asBool(p.smoking_status ?? p.lifestyle?.smokes);
+    if (ps == null || ps !== wantSmokes) return false;
+  }
+  if (typeof wantFHx === "boolean") {
+    const pfh = asBool(p.family_history_of_chronic_kidney_disease ?? p.lifestyle?.familyHistoryCKD);
+    if (pfh == null || pfh !== wantFHx) return false;
+  }
+
+  // ---- strict activity match (if user provided) ----
   if (wantAct) {
-    const pActRaw =
-      (p?.lifestyle?.activity ?? p?.lifestyle?.activityLevel ?? p?.physical_activity_level ?? null);
-    const pAct = normActivity(pActRaw);
+    const pActRaw = p?.lifestyle?.activity ?? p?.lifestyle?.activityLevel ?? p?.physical_activity_level ?? null;
+    const pAct = normActivity(pActRaw); // your helper that returns 'low'|'moderate'|'high'|null
     if (!pAct || pAct !== wantAct) return false;
   }
 
-  // BMI band: only enforce if user BMI exists and patient BMI exists
+  // ---- BMI ± band (only if both sides have BMI) ----
   if (Number.isFinite(wantBMI)) {
-    const pBMI = toNum(p?.body_mass_index_bmi ?? p?.vitals?.bmi);
+    const pBMI = toNum(p?.vitals?.bmi ?? p?.body_mass_index_bmi);
     if (Number.isFinite(pBMI)) {
-      if (pBMI < wantBMI - 3 || pBMI > wantBMI + 3) return false;
+      if (pBMI < wantBMI - BMI_BAND || pBMI > wantBMI + BMI_BAND) return false;
     }
   }
 
-  const AGE_BAND = 8; // years
-  if (Number.isFinite(normUser.age)) {
-    candidates = candidates.filter(p => {
-      const pa = toNum(p.age_of_the_patient) ?? toNum(p.age);
-      return Number.isFinite(pa) ? Math.abs(pa - normUser.age) <= AGE_BAND : false;
-    });
+  // ---- Age ± band (only if both sides have age) ----
+  if (Number.isFinite(wantAge)) {
+    const pAge = toNum(p.age ?? p.age_of_the_patient);
+    if (Number.isFinite(pAge)) {
+      if (Math.abs(pAge - wantAge) > AGE_BAND) return false;
+    }
   }
+
   return true;
 });
+// -----------------------------------------------------------------
 
     // 6) normalize + compute ranges
     const normalized = candidates.map(normalizePatientDoc);
@@ -361,18 +396,45 @@ candidates = candidates.filter(p => {
       }
     }
 
-    // 7) score with Gower
+    // 7) score with Gower (+ optional soft penalty)
     const scored = normalized.map((p) => {
       let s = gowerSim(normUser, p, features);
       const userNoCKD = !normUser?.vitals?.egfr || normUser?.vitals?.egfr >= 60;
       const patCKD = Number.isFinite(p?.vitals?.egfr) && p.vitals.egfr < 60;
       if (userNoCKD && patCKD) s -= 0.25; // optional soft penalty
       s = Math.max(0, Math.min(1, s));
-      return { p, score: Math.round(s * 100) };
+      return { p, score: Math.round(s * 100) }; // integer percent
     });
 
     scored.sort((a, b) => (b.score - a.score) || String(a.p._id).localeCompare(String(b.p._id)));
     const top = scored.slice(0, Math.min(12, Math.max(1, Number(limit) || 12)));
+
+    // ========== TERMINAL LOG: Gower top-N ==========
+    try {
+      const rows = top.map(({ p, score }, i) => ({
+        '#': i + 1,
+        id: String(p._id),
+        score: `${score}%`,
+        age: p.age,
+        gender: p.gender,
+        bmi: val(p, "vitals.bmi"),
+        egfr: val(p, "vitals.egfr"),
+        diabetic: val(p, "lifestyle.diabetic"),
+        highBP: val(p, "lifestyle.highBP"),
+        smokes: val(p, "lifestyle.smokes"),
+        activity: val(p, "lifestyle.activity"),
+      }));
+      console.log("\n=== Gower Top Matches ===");
+      console.table(rows);
+
+      // Optional: per-feature breakdown for best match (if you exported printBreakdownRow)
+      if (typeof printBreakdownRow === "function" && top.length > 0) {
+        printBreakdownRow(normUser, top[0].p, features);
+      }
+    } catch (_) {
+      // no-op if console.table or breakdown not available
+    }
+    // ===============================================
 
     const cards = top.map(({ p, score }) => ({
       _id: p._id,

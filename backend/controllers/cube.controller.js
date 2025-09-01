@@ -93,7 +93,7 @@ const getBinProjection = (field) => {
 };
 
 // List of all possible target values
-const ALL_TARGETS = ["low_risk", "high_risk", "moderate_risk"];
+const ALL_TARGETS = ["low_risk", "high_risk", "moderate_risk","severe_disease"];
 
 // ✅ Custom Pivot Table API
 const getCustomPivot = async (req, res) => {

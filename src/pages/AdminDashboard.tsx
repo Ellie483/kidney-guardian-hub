@@ -11,6 +11,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Users, Trash2, Database, BookOpen, Shield, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash, ChevronLeft, ChevronRight } from "lucide-react";
+import { LogOut } from "lucide-react";
+
 
 // at top of the file
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
@@ -280,6 +282,7 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit, total]);
 
+const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   const [type, setType] = useState("myth");
   const [title, setTitle] = useState("");
@@ -289,6 +292,18 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
   const [mythloading, setmythLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  // --- Train model ---
+  type TrainResp = {
+    message: string;
+    samples: number;
+    features: string[];     // array coming from API
+    tree_saved: boolean;
+  };
+
+  const [training, setTraining] = useState(false);
+  const [trainResult, setTrainResult] = useState<TrainResp | null>(null);
+
 
   const API_URL = "http://localhost:5000/mythfact";
 
@@ -330,6 +345,34 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     }
   };
 
+  const handleTrainModel = async () => {
+    try {
+      setTraining(true);
+      setTrainResult(null);
+  
+      const res = await fetch(`${API_BASE}/api/lab/trainmodel`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data: TrainResp = await readJson(res);
+  
+      setTrainResult(data);
+      toast({
+        title: data.tree_saved ? "Model saved" : "Training finished",
+        description: data.message || "Training completed.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Training failed",
+        description: e?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setTraining(false);
+    }
+  };
+
   // Delete content
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
@@ -340,6 +383,15 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       console.error(err);
     }
   };
+
+   const handleLogout = () => {
+    // setUser(null);
+    localStorage.removeItem("kidneyguard_user");
+    localStorage.removeItem("userId");
+    fetch(`${API}/users/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+    window.location.href = "/login";
+  };
+
 
 
 
@@ -356,7 +408,14 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
             <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
             <p className="text-muted-foreground">Manage users, content, and system data</p>
           </div>
-          <Shield className="h-8 w-8 text-primary" />
+          {/* <Shield className="h-8 w-8 text-primary" /> */}
+          <button
+  onClick={handleLogout}
+  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-md shadow-md transition-colors duration-200"
+>
+  <LogOut className="w-5 h-5" />
+  Logout
+</button>
         </div>
 
         {/* Stats Cards */}
@@ -406,6 +465,35 @@ const handleJsonChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
               <div className="text-2xl font-bold text-primary">{stats.totalPatients}</div>
             </CardContent>
           </Card>
+          
+          <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Train New Model</CardTitle>
+              <Database className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button onClick={handleTrainModel} disabled={training} className="w-full">
+                {training ? "Training…" : "Start Training"}
+              </Button>
+
+              {trainResult && (
+                <div className="rounded-md border p-3 text-sm">
+                  <div className="font-medium mb-1">{trainResult.message}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground">
+                    <div><span className="text-foreground font-medium">Samples:</span> {trainResult.samples}</div>
+                    <div>
+                      <span className="text-foreground font-medium">Features:</span> {trainResult.features?.length ?? 0}
+                    </div>
+                    <div>
+                      <span className="text-foreground font-medium">Model Saved:</span>{" "}
+                      {trainResult.tree_saved ? "Yes" : "No"}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
         </div>
 
         {/* Main Content Tabs */}

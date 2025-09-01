@@ -473,7 +473,7 @@ exports.trainModel = async (req, res) => {
     };
     
     const rawTrainingData = await Patient.find()
-      .limit(20)
+      .limit(10000)
       .select('serum_creatinine_mgdl estimated_glomerular_filtration_rate_egfr blood_urea_mgdl albumin_in_urine sodium_level_meql potassium_level_meql target')
       .lean();
 

@@ -293,6 +293,18 @@ const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
+  // --- Train model ---
+  type TrainResp = {
+    message: string;
+    samples: number;
+    features: string[];     // array coming from API
+    tree_saved: boolean;
+  };
+
+  const [training, setTraining] = useState(false);
+  const [trainResult, setTrainResult] = useState<TrainResp | null>(null);
+
+
   const API_URL = "http://localhost:5000/mythfact";
 
   // Fetch existing content
@@ -330,6 +342,34 @@ const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
       setCategory("general");
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleTrainModel = async () => {
+    try {
+      setTraining(true);
+      setTrainResult(null);
+  
+      const res = await fetch(`${API_BASE}/api/lab/trainmodel`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data: TrainResp = await readJson(res);
+  
+      setTrainResult(data);
+      toast({
+        title: data.tree_saved ? "Model saved" : "Training finished",
+        description: data.message || "Training completed.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Training failed",
+        description: e?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setTraining(false);
     }
   };
 
@@ -425,6 +465,35 @@ const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
               <div className="text-2xl font-bold text-primary">{stats.totalPatients}</div>
             </CardContent>
           </Card>
+          
+          <Card className="bg-card/80 backdrop-blur-sm border-warm shadow-medical">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Train New Model</CardTitle>
+              <Database className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button onClick={handleTrainModel} disabled={training} className="w-full">
+                {training ? "Training…" : "Start Training"}
+              </Button>
+
+              {trainResult && (
+                <div className="rounded-md border p-3 text-sm">
+                  <div className="font-medium mb-1">{trainResult.message}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground">
+                    <div><span className="text-foreground font-medium">Samples:</span> {trainResult.samples}</div>
+                    <div>
+                      <span className="text-foreground font-medium">Features:</span> {trainResult.features?.length ?? 0}
+                    </div>
+                    <div>
+                      <span className="text-foreground font-medium">Model Saved:</span>{" "}
+                      {trainResult.tree_saved ? "Yes" : "No"}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
         </div>
 
         {/* Main Content Tabs */}

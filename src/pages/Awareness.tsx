@@ -9,6 +9,7 @@ import { Brain, ChartBar, Users, TrendingUp, CheckCircle, X, Lightbulb } from "l
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import PivotTable from "@/components/ui/pivot";
+import AppetiteHeatmap from "@/components/ui/appetiteHeatmap";
 // Mock data for charts
 const genderData = [
   { name: 'Male', value: 45, patients: 4500 },
@@ -374,6 +375,13 @@ export default function Awareness() {
       return newSet;
     });
   };
+  const ageGroupLabels: Record<string, string> = {
+    "18-30": "Youth",
+    "31-45": "Young Adults",
+    "46-60": "Middle-aged Adults",
+    "61-75": "Seniors",
+    "75+": "Elderly",
+  };
 
   // Filter myths/facts by category
   const filteredItems = filterCategory === "all"
@@ -414,16 +422,37 @@ export default function Awareness() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
               <Card className="text-center shadow-card border-0 animate-fade-in">
                 <CardContent className="pt-6">
-                  <div className="text-3xl font-bold text-primary mb-2">37M</div>
-                  <p className="text-sm text-muted-foreground">Americans with CKD</p>
+                  <div className="text-4xl font-bold text-primary mb-2">
+                    {lifestyleImpactData[0]?.percentage.toFixed(1)}%
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+
+                    has {lifestyleImpactData[0]?.factor
+                      .replace(/_/g, " ")
+                      .replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </p>
                 </CardContent>
               </Card>
-              <Card className="text-center shadow-card border-0 animate-fade-in" style={{ animationDelay: '100ms' }}>
-                <CardContent className="pt-6">
-                  <div className="text-3xl font-bold text-secondary mb-2">90%</div>
-                  <p className="text-sm text-muted-foreground">Don't know they have it</p>
-                </CardContent>
-              </Card>
+            <Card
+  className="text-center shadow-card border-0 animate-fade-in"
+  style={{ animationDelay: '100ms' }}
+>
+  <CardContent className="pt-6">
+    {highestGroup && (
+      <>
+                  <div className="text-4xl font-bold font-red mb-2">
+          {highestGroup}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Most affected age group
+        </p>
+      </>
+    )}
+  </CardContent>
+</Card>
+
+
+
               {topRiskFactor && (
                 <Card className="text-center shadow-card border-0 animate-fade-in" style={{ animationDelay: '200ms' }}>
                   <CardContent className="pt-6">
@@ -631,32 +660,7 @@ export default function Awareness() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="shadow-card border-0 animate-slide-up" style={{ animationDelay: '400ms' }}>
-              <div className="rounded-lg border shadow-sm overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Age Group</TableHead>
-                      <TableHead>Appetite</TableHead>
-                      {appetiteData[0]?.targets.map((t) => (
-                        <TableHead key={t.target}>{t.target.replace(/_/g, " ")}</TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {appetiteData.map((row, i) => (
-                      <TableRow key={i} style={{ borderLeft: `4px solid ${ageGroupColors[row.age_group]}` }}>
-                        <TableCell>{row.age_group}</TableCell>
-                        <TableCell className="capitalize">{row.appetite}</TableCell>
-                        {row.targets.map((t) => (
-                          <TableCell key={t.target}>{t.percentage.toFixed(1)}%</TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </Card>
+            <AppetiteHeatmap />
 
           </TabsContent>
 
@@ -692,27 +696,27 @@ export default function Awareness() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Column Field</label>
-               <select
-  value={colField || ""}
-  onChange={(e) => setColField(e.target.value)}
-  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
->
-  <option value="">-- Select Column Field --</option>
-  {availableFields.map((field) => {
-    const isDisabled =
-      field === rowField || 
-      (field === "duration_of_hypertension_years" && rowField === "hypertension_yesno") ||
-      (field === "hypertension_yesno" && rowField === "duration_of_hypertension_years") ||
-      (field === "duration_of_diabetes_mellitus_years" && rowField === "diabetes_mellitus_yesno") ||
-      (field === "diabetes_mellitus_yesno" && rowField === "duration_of_diabetes_mellitus_years");
+                <select
+                  value={colField || ""}
+                  onChange={(e) => setColField(e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                >
+                  <option value="">-- Select Column Field --</option>
+                  {availableFields.map((field) => {
+                    const isDisabled =
+                      field === rowField ||
+                      (field === "duration_of_hypertension_years" && rowField === "hypertension_yesno") ||
+                      (field === "hypertension_yesno" && rowField === "duration_of_hypertension_years") ||
+                      (field === "duration_of_diabetes_mellitus_years" && rowField === "diabetes_mellitus_yesno") ||
+                      (field === "diabetes_mellitus_yesno" && rowField === "duration_of_diabetes_mellitus_years");
 
-    return (
-      <option key={field} value={field} disabled={isDisabled}>
-        {fieldLabels[field]}
-      </option>
-    );
-  })}
-</select>
+                    return (
+                      <option key={field} value={field} disabled={isDisabled}>
+                        {fieldLabels[field]}
+                      </option>
+                    );
+                  })}
+                </select>
 
 
               </div>

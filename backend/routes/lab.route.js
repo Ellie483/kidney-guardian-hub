@@ -5,6 +5,7 @@ const router = express.Router();
 const labController  = require("../controllers/lab.controller");
 
 router.post("/", labController.predictPatientCondition);
+router.post("/trainmodel", labController.trainModel);
 
 // Cache management endpoints
 router.get('/cache', labController.clearCache);

@@ -405,10 +405,6 @@ export default function Dashboard({ user }: DashboardProps) {
             </CardContent>
           </Card>
 
-
-
-
-
           {/* Personalized Tips */}
           <Card className="lg:col-span-3 shadow-card border-0 animate-slide-up">
             <CardHeader>

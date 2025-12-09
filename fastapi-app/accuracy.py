@@ -6,7 +6,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 # 1. Load dataset
-df = pd.read_csv("kidney_dataset_20_attributes__softfixed.csv")
+df = pd.read_csv("./4. Fourth part (9001 to 12095).csv")
 
 # 2. Drop extra unnamed columns (if any)
 df = df.drop(columns=[col for col in df.columns if "Unnamed" in col])

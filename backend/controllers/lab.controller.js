@@ -398,11 +398,12 @@ exports.predictPatientCondition = async (req, res) => {
       console.log('🔄 Training new model with real data...');
       
       // 4. Extract real data from database (20 records for tracing)
-      // Keep only 1 → 9000
-      const rawTrainingData = await Patient.find()
-        .limit(9000)
-        .select('serum_creatinine_mgdl estimated_glomerular_filtration_rate_egfr blood_urea_mgdl albumin_in_urine sodium_level_meql potassium_level_meql target')
-        .lean();
+     // Keep only 1 → 9000
+        const rawTrainingData = await Patient.find()
+          .limit(9000)
+          .select('serum_creatinine_mgdl estimated_glomerular_filtration_rate_egfr blood_urea_mgdl albumin_in_urine sodium_level_meql potassium_level_meql target')
+          .lean();
+
 
       console.log(`✅ Retrieved ${rawTrainingData.length} records from database`);
       

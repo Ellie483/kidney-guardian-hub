@@ -1,28 +1,26 @@
-const cacheService = require('../services/cache.service');
+// lab.controller.js
+const fs = require("fs");
+const path = require("path");
+const csv = require("csv-parser");
+
+const cacheService = require("../services/cache.service");
+
 const Patient = require("../models/patient.model");
-const fs = require('fs').promises;
-const path = require('path');
 
-// ⚡ Load decision-tree dynamically
-let DecisionTree;
-import('decision-tree').then(module => {
-  DecisionTree = module.default;
-}).catch(err => {
-  console.error('Failed to load decision-tree:', err);
-});
-
-// 🏥 6 ATTRIBUTES + TARGET
+// Features and class name for DT
+const class_name = "target";
 const features = [
-  'creatinine_category',
-  'egfr_category',
-  'blood_urea_category',
-  'albumin_urine_category',
-  'sodium_category',
-  'potassium_category'
+  "creatinine_category",
+  "egfr_category",
+  "blood_urea_category",
+  "albumin_urine_category",
+  "sodium_category",
+  "potassium_category"
 ];
 
-const class_name = 'target';
-
+// ---------------------
+// BINNING UTILITIES
+// ---------------------
 // 📊 FIND MIN/MAX VALUES FOR EACH ATTRIBUTE
 async function findMinMaxValues() {
   try {
@@ -81,8 +79,6 @@ async function findMinMaxValues() {
   }
 }
 
-
-// 🏥 CREATE DYNAMIC BINNING FUNCTIONS WITH DEBUG LOGS
 function createBinningFunctions(minMaxValues) {
   // Fallback to standard medical ranges if no data
   const ranges = minMaxValues || {
@@ -315,6 +311,85 @@ function createBinningFunctions(minMaxValues) {
   return binningFunctions;
 }
 
+// ---------------------
+// CHECK ACCURACY
+// ---------------------
+exports.checkAccuracy = async (req, res) => {
+  try {
+    // 1️⃣ Load cached DT from Redis
+    const cachedModelJson = await cacheService.getDecisionTree();
+    if (!cachedModelJson) return res.status(400).json({ error: "Decision tree not found in cache" });
+
+    const dtInstance = new DecisionTree(cachedModelJson);
+
+    // 2️⃣ Prepare binning
+    const minMaxValues = await findMinMaxValues();
+    const binningFunctions = createBinningFunctions(minMaxValues);
+
+    // 3️⃣ Read CSV file
+    const csvPath = path.join(__dirname, "../data/1. First part (1 to 3000).csv");
+    const dataset = [];
+
+    await new Promise((resolve, reject) => {
+      fs.createReadStream(csvPath)
+        .pipe(csv())
+        .on("data", row => {
+          dataset.push({
+            creatinine_category: binningFunctions.binCreatinine(Number(row.serum_creatinine_mgdl)),
+            egfr_category: binningFunctions.binEGFR(Number(row.estimated_glomerular_filtration_rate_egfr)),
+            blood_urea_category: binningFunctions.binBloodUrea(Number(row.blood_urea_mgdl)),
+            albumin_urine_category: binningFunctions.binAlbuminUrine(Number(row.albumin_in_urine)),
+            sodium_category: binningFunctions.binSodium(Number(row.sodium_level_meql)),
+            potassium_category: binningFunctions.binPotassium(Number(row.potassium_level_meql)),
+            target: row.target
+          });
+        })
+        .on("end", resolve)
+        .on("error", reject);
+    });
+
+    if (dataset.length === 0) return res.status(400).json({ error: "CSV is empty" });
+
+    // 4️⃣ Calculate accuracy
+    let correct = 0;
+    dataset.forEach(sample => {
+      const predicted = dtInstance.predict(sample);
+      if (predicted === sample.target) correct++;
+    });
+
+    const accuracy = (correct / dataset.length) * 100;
+
+    res.json({
+      total_samples: dataset.length,
+      correct_predictions: correct,
+      accuracy: `${accuracy.toFixed(2)}%`
+    });
+
+  } catch (err) {
+    console.error("Accuracy check error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+// ⚡ Load decision-tree dynamically
+let DecisionTree;
+import('decision-tree').then(module => {
+  DecisionTree = module.default;
+}).catch(err => {
+  console.error('Failed to load decision-tree:', err);
+});
+
+
+
+
+
+
+
+
+// 🏥 CREATE DYNAMIC BINNING FUNCTIONS WITH DEBUG LOGS
+
+
 // 📝 SAVE COMPLETE DTINSTANCE TO TEXT FILE
 async function saveDtInstanceToFile(dtInstance, filename = 'dt-instance-structure.txt') {
   try {
@@ -474,10 +549,12 @@ exports.trainModel = async (req, res) => {
       };
     };
     
-    const rawTrainingData = await Patient.find()
-      .limit(10000)
-      .select('serum_creatinine_mgdl estimated_glomerular_filtration_rate_egfr blood_urea_mgdl albumin_in_urine sodium_level_meql potassium_level_meql target')
-      .lean();
+   const rawTrainingData = await Patient.find()
+  .skip(3000)
+  .select('serum_creatinine_mgdl estimated_glomerular_filtration_rate_egfr blood_urea_mgdl albumin_in_urine sodium_level_meql potassium_level_meql target')
+  .lean();
+
+
 
     const trainingDataWithCategories = rawTrainingData.map(preprocessPatientData);
     const dtInstance = new DecisionTree(trainingDataWithCategories, class_name, features);
@@ -549,3 +626,6 @@ exports.getTreeAnalysis = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 }
+
+
+
